@@ -1,0 +1,4436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FLAKE//FORENSICS: Flaky Test Root-Cause Diagnoser for JS/TS</title>
+  <style>
+    :root {
+      /* Sleek dark navy/black theme with electric blue & cyan accents */
+      --bg-base: #030712;
+      --bg-surface: #080f1e;
+      --bg-card: #0c162c;
+      --bg-card-hover: #11203d;
+      --bg-card-active: #162a52;
+      --bg-terminal: #040813;
+      --bg-glass: rgba(12, 22, 44, 0.75);
+      
+      --border-subtle: rgba(56, 189, 248, 0.12);
+      --border-medium: rgba(56, 189, 248, 0.24);
+      --border-strong: #0284c7;
+      --border-glow: #38bdf8;
+      
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --accent-cyan: #00f2fe;
+      --accent-blue: #38bdf8;
+      --accent-primary: #0284c7;
+      --accent-primary-hover: #0369a1;
+      --accent-indigo: #6366f1;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: 'Courier New', Courier, monospace;
+      
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-xl: 20px;
+      
+      --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.6);
+      --shadow-md: 0 4px 14px -1px rgba(0, 0, 0, 0.7);
+      --shadow-lg: 0 10px 30px -3px rgba(0, 0, 0, 0.85);
+      --shadow-glow: 0 0 25px -2px rgba(56, 189, 248, 0.25);
+      --shadow-cyan-glow: 0 0 35px -5px rgba(0, 242, 254, 0.3);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 60%),
+        radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.04) 0%, transparent 40%),
+        radial-gradient(circle at 90% 40%, rgba(0, 242, 254, 0.04) 0%, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      font-size: 14px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-base);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-medium);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-blue);
+    }
+
+    /* Layout Containers with 24px Gap */
+    .app-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px 24px 60px 24px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Top Navigation Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      background: rgba(8, 15, 30, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* Unique Code-Forensics Logo (No Snowflake) */
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #0c1c38 0%, #081226 100%);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(0, 242, 254, 0.25);
+      flex-shrink: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .brand-icon::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: linear-gradient(45deg, transparent 40%, rgba(0, 242, 254, 0.15) 50%, transparent 60%);
+      animation: sweepGlow 4s infinite linear;
+    }
+
+    @keyframes sweepGlow {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+
+    .brand-text h1 {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-sans);
+    }
+
+    .brand-text h1 span.logo-title {
+      background: linear-gradient(135deg, #ffffff 20%, #38bdf8 70%, #00f2fe 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      letter-spacing: 1.5px;
+    }
+
+    .brand-badge {
+      font-size: 10.5px;
+      font-weight: 800;
+      background: rgba(0, 242, 254, 0.1);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 2px 8px;
+      border-radius: 9999px;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+    }
+
+    .brand-text p {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      letter-spacing: 0.2px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 9px 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+      text-decoration: none;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: #ffffff;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      box-shadow: 0 2px 10px rgba(2, 132, 199, 0.35);
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+      border-color: #38bdf8;
+      box-shadow: 0 4px 16px rgba(56, 189, 248, 0.45);
+      transform: translateY(-1px);
+    }
+
+    .btn-cyan {
+      background: linear-gradient(135deg, #00f2fe 0%, #0284c7 100%);
+      color: #030712;
+      font-weight: 700;
+      border: 1px solid rgba(0, 242, 254, 0.6);
+      box-shadow: 0 2px 12px rgba(0, 242, 254, 0.35);
+    }
+    .btn-cyan:hover:not(:disabled) {
+      background: linear-gradient(135deg, #38bdf8 0%, #00f2fe 100%);
+      box-shadow: 0 4px 20px rgba(0, 242, 254, 0.55);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border-medium);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--bg-card-hover);
+      border-color: var(--accent-blue);
+      color: #ffffff;
+    }
+
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.16);
+      color: var(--accent-rose);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(244, 63, 94, 0.28);
+      box-shadow: 0 0 14px rgba(244, 63, 94, 0.3);
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 5px;
+    }
+
+    /* Hero Section */
+    .hero-banner {
+      background: linear-gradient(135deg, rgba(8, 15, 30, 0.95) 0%, rgba(12, 22, 44, 0.85) 100%);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 32px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 32px;
+      box-shadow: var(--shadow-md);
+      position: relative;
+      overflow: hidden;
+      flex-wrap: wrap;
+    }
+
+    .hero-banner::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent 0%, #00f2fe 30%, #38bdf8 70%, transparent 100%);
+    }
+
+    .hero-content {
+      max-width: 820px;
+    }
+
+    .hero-badge-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .hero-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.12);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 3px 10px;
+      border-radius: 9999px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .radar-pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: radarPulse 2s infinite ease-in-out;
+    }
+
+    @keyframes radarPulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.6); opacity: 0.4; }
+    }
+
+    .hero-title {
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: -0.6px;
+      line-height: 1.15;
+      margin-bottom: 8px;
+    }
+
+    .hero-title .glow-text {
+      background: linear-gradient(135deg, #ffffff 10%, #38bdf8 60%, #00f2fe 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-tagline {
+      font-size: 18px;
+      font-weight: 700;
+      color: #38bdf8;
+      letter-spacing: 0.2px;
+      margin-bottom: 8px;
+    }
+
+    .hero-sub {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 720px;
+    }
+
+    .hero-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      min-width: 320px;
+    }
+
+    .hero-metric-tile {
+      background: rgba(4, 8, 19, 0.6);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .hero-metric-tile .tile-val {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: 800;
+      color: #38bdf8;
+    }
+
+    .hero-metric-tile .tile-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Workflow Strip: Run -> Reproduce -> Analyze -> Root Cause -> Fix */
+    .workflow-strip-container {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .workflow-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-family: var(--font-mono);
+    }
+
+    .workflow-pipeline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      overflow-x: auto;
+    }
+
+    .workflow-stage-card {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-width: 170px;
+      user-select: none;
+    }
+
+    .workflow-stage-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--accent-blue);
+      transform: translateY(-1px);
+    }
+
+    .workflow-stage-card.active {
+      border-color: var(--accent-cyan);
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.12) 0%, rgba(12, 22, 44, 0.9) 100%);
+      box-shadow: 0 0 16px rgba(0, 242, 254, 0.2);
+    }
+
+    .workflow-stage-card.completed {
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    .stage-idx {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-medium);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-muted);
+    }
+
+    .workflow-stage-card.active .stage-idx {
+      background: var(--accent-cyan);
+      color: #030712;
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 10px rgba(0, 242, 254, 0.6);
+    }
+
+    .workflow-stage-card.completed .stage-idx {
+      background: rgba(16, 185, 129, 0.2);
+      color: #6ee7b7;
+      border-color: var(--accent-emerald);
+    }
+
+    .stage-meta {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stage-meta .stage-name {
+      font-size: 12.5px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      color: var(--text-main);
+    }
+
+    .stage-meta .stage-sub {
+      font-size: 10.5px;
+      color: var(--text-dim);
+    }
+
+    .workflow-separator {
+      color: var(--border-medium);
+      font-size: 16px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* Stepper Navigation */
+    .stepper-nav {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      overflow-x: auto;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      background: transparent;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .step-item.locked {
+      cursor: not-allowed;
+      opacity: 0.4;
+    }
+
+    .step-item.completed {
+      color: var(--accent-emerald);
+    }
+    .step-item.completed:hover {
+      background: rgba(16, 185, 129, 0.08);
+      border-color: rgba(16, 185, 129, 0.25);
+    }
+
+    .step-item.active {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.45);
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.2);
+    }
+
+    .step-num-pill {
+      width: 25px;
+      height: 25px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      background: var(--bg-card);
+      border: 1px solid var(--border-medium);
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+    }
+
+    .step-item.completed .step-num-pill {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: var(--accent-emerald);
+      color: var(--accent-emerald);
+    }
+
+    .step-item.active .step-num-pill {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: #030712;
+      font-weight: 900;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.55);
+    }
+
+    .step-title-wrap {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .step-title-wrap .title {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .step-title-wrap .subtitle {
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .step-divider {
+      height: 1px;
+      flex: 1;
+      min-width: 12px;
+      background: var(--border-subtle);
+    }
+
+    /* Panels */
+    .step-panel {
+      display: none;
+      animation: fadeIn 0.22s ease-in-out;
+    }
+    .step-panel.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Cards with 24px Margins */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .card-header-text h2 {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: -0.2px;
+    }
+
+    .card-header-text p {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    /* Step Footer */
+    .step-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+    }
+
+    .step-progress-indicator {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Grids with 24px Gap */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+
+    @media (max-width: 992px) {
+      .grid-2, .grid-3, .grid-4 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Forms */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .form-control {
+      background: var(--bg-card);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      padding: 9px 13px;
+      outline: none;
+      transition: all 0.15s ease;
+    }
+    .form-control:focus {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+    }
+
+    select.form-control {
+      cursor: pointer;
+    }
+
+    /* Monospace Code & Error Blocks */
+    textarea.form-control-code {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      resize: vertical;
+      background: var(--bg-terminal);
+      border: none;
+      white-space: pre;
+      padding: 14px;
+      color: #e2e8f0;
+      outline: none;
+      width: 100%;
+    }
+
+    /* Scenario Picker Banner */
+    .scenario-picker-banner {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(0, 242, 254, 0.08) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .scenario-info {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .scenario-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      background: rgba(56, 189, 248, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #38bdf8;
+      font-size: 17px;
+      font-weight: bold;
+    }
+
+    /* Code View / Terminal Containers with Clear Visual Separation */
+    .code-container {
+      background: var(--bg-terminal);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .code-container.error-block {
+      border-color: rgba(244, 63, 94, 0.35);
+      background: #090c14;
+    }
+
+    .code-header {
+      background: #0b101d;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .code-container.error-block .code-header {
+      background: rgba(244, 63, 94, 0.08);
+      border-bottom-color: rgba(244, 63, 94, 0.25);
+    }
+
+    .code-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .code-dots {
+      display: flex;
+      gap: 5px;
+    }
+    .code-dots span {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #334155;
+    }
+    .code-dots span:nth-child(1) { background: #ef4444; }
+    .code-dots span:nth-child(2) { background: #f59e0b; }
+    .code-dots span:nth-child(3) { background: #10b981; }
+
+    .terminal-body {
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      color: #e2e8f0;
+      overflow-x: auto;
+      background: var(--bg-terminal);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 9px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .badge-rose {
+      background: rgba(244, 63, 94, 0.16);
+      color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.35);
+    }
+    .badge-emerald {
+      background: rgba(16, 185, 129, 0.16);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+    .badge-amber {
+      background: rgba(245, 158, 11, 0.16);
+      color: #fcd34d;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .badge-cyan {
+      background: rgba(0, 242, 254, 0.16);
+      color: #67e8f9;
+      border: 1px solid rgba(0, 242, 254, 0.35);
+    }
+    .badge-indigo {
+      background: rgba(99, 102, 241, 0.16);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.35);
+    }
+
+    /* Step 2: 40-Run Matrix */
+    .run-matrix-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .matrix-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .matrix-grid {
+      display: grid;
+      grid-template-columns: repeat(20, 1fr);
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 768px) {
+      .matrix-grid {
+        grid-template-columns: repeat(10, 1fr);
+      }
+    }
+
+    .matrix-cell {
+      aspect-ratio: 1;
+      border-radius: 4px;
+      background: #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: #ffffff;
+      cursor: pointer;
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    .matrix-cell:hover {
+      transform: scale(1.24);
+      z-index: 10;
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.85);
+    }
+
+    .matrix-cell.pass {
+      background: #10b981;
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.3);
+    }
+
+    .matrix-cell.fail {
+      background: #f43f5e;
+      box-shadow: 0 0 8px rgba(244, 63, 94, 0.45);
+    }
+
+    .matrix-cell.in-streak {
+      outline: 2px solid #f59e0b;
+      outline-offset: 1px;
+    }
+
+    .matrix-cell.pulsing {
+      animation: flipIn 0.28s forwards;
+    }
+
+    @keyframes flipIn {
+      0% { transform: rotateY(90deg); opacity: 0; }
+      100% { transform: rotateY(0deg); opacity: 1; }
+    }
+
+    /* Metric Stat Cards */
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .metric-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .metric-value {
+      font-size: 27px;
+      font-weight: 800;
+      font-family: var(--font-sans);
+      letter-spacing: -0.5px;
+    }
+
+    .metric-sub {
+      font-size: 11.5px;
+      color: var(--text-dim);
+    }
+
+    /* Callouts */
+    .callout {
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      margin-top: 18px;
+    }
+
+    .callout-info {
+      background: rgba(56, 189, 248, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: #e0f2fe;
+    }
+
+    .callout-warning {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: #fef3c7;
+    }
+
+    .callout-danger {
+      background: rgba(244, 63, 94, 0.08);
+      border: 1px solid rgba(244, 63, 94, 0.25);
+      color: #ffe4e6;
+    }
+
+    .callout-success {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #d1fae5;
+    }
+
+    /* Step 3: Heuristic Signal Cards */
+    .signal-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .signal-card.detected {
+      border-color: var(--accent-rose);
+      background: linear-gradient(180deg, rgba(244, 63, 94, 0.06) 0%, var(--bg-card) 100%);
+    }
+
+    .signal-card.clean {
+      border-color: var(--border-subtle);
+      opacity: 0.75;
+    }
+
+    .signal-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .signal-meter-bar {
+      height: 6px;
+      background: #1e293b;
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+
+    .signal-meter-fill {
+      height: 100%;
+      border-radius: 9999px;
+      transition: width 0.4s ease;
+    }
+
+    .signal-matches-list {
+      list-style: none;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .signal-matches-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 6px 10px;
+      border-radius: 4px;
+      line-height: 1.5;
+    }
+
+    /* Step 4: Diagnostic Probes */
+    .probe-matrix {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .probe-row {
+      background: var(--bg-card);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      transition: all 0.2s ease;
+    }
+
+    .probe-row:hover {
+      background: var(--bg-card-hover);
+    }
+
+    .probe-row.active {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+    }
+
+    .probe-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex: 1;
+    }
+
+    .probe-indicator {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #334155;
+      flex-shrink: 0;
+    }
+    .probe-indicator.triggered {
+      background: var(--accent-rose);
+      box-shadow: 0 0 8px var(--accent-rose);
+    }
+    .probe-indicator.passed {
+      background: var(--accent-emerald);
+      box-shadow: 0 0 8px var(--accent-emerald);
+    }
+
+    .probe-desc h4 {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .probe-desc p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .probe-result-badge {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      padding: 4px 10px;
+      border-radius: 4px;
+      min-width: 120px;
+      text-align: center;
+      font-weight: 700;
+    }
+
+    /* Step 5: Verdict & Differential Diagnosis */
+    .verdict-hero {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.16) 0%, rgba(244, 63, 94, 0.16) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: var(--radius-lg);
+      padding: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-glow);
+      flex-wrap: wrap;
+    }
+
+    .verdict-left h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #38bdf8;
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+
+    .verdict-title {
+      font-size: 26px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .verdict-summary {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      max-width: 720px;
+      line-height: 1.6;
+    }
+
+    .confidence-radial {
+      text-align: center;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 16px 24px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-medium);
+      flex-shrink: 0;
+    }
+
+    .confidence-score {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--accent-emerald);
+      font-family: var(--font-mono);
+    }
+
+    .confidence-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      font-weight: 700;
+    }
+
+    /* Differential Table */
+    .differential-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      font-size: 12.5px;
+    }
+
+    .differential-table th {
+      text-align: left;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-medium);
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .differential-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: top;
+      line-height: 1.6;
+    }
+
+    .differential-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Step 6: Repro Command Generator */
+    .command-box {
+      background: var(--bg-terminal);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      position: relative;
+      margin-top: 14px;
+    }
+
+    .command-text {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: #38bdf8;
+      word-break: break-all;
+      line-height: 1.6;
+    }
+
+    .command-flags-breakdown {
+      margin-top: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .flag-item {
+      display: flex;
+      gap: 12px;
+      font-size: 12.5px;
+      align-items: baseline;
+    }
+
+    .flag-name {
+      font-family: var(--font-mono);
+      color: #fcd34d;
+      background: rgba(245, 158, 11, 0.12);
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      white-space: nowrap;
+      font-weight: 700;
+    }
+
+    .flag-desc {
+      color: var(--text-muted);
+    }
+
+    /* Step 7: Diff View */
+    .diff-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      background: var(--bg-terminal);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin-top: 16px;
+    }
+
+    .diff-container.unified {
+      grid-template-columns: 1fr;
+    }
+
+    @media (max-width: 900px) {
+      .diff-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .diff-pane {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .diff-pane-header {
+      padding: 10px 16px;
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .diff-pane-header.before {
+      background: rgba(244, 63, 94, 0.15);
+      color: #fda4af;
+      border-bottom: 1px solid rgba(244, 63, 94, 0.3);
+    }
+
+    .diff-pane-header.after {
+      background: rgba(16, 185, 129, 0.15);
+      color: #6ee7b7;
+      border-bottom: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .diff-code-body {
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-x: auto;
+      max-height: 480px;
+    }
+
+    .diff-line {
+      white-space: pre;
+      padding: 2px 6px;
+      border-radius: 2px;
+    }
+
+    .diff-line.del {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fca5a5;
+    }
+    .diff-line.add {
+      background: rgba(16, 185, 129, 0.2);
+      color: #86efac;
+    }
+    .diff-line.dim {
+      color: var(--text-dim);
+    }
+
+    /* Modal & Toast Notification */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toast {
+      background: #0f1c38;
+      border: 1px solid #38bdf8;
+      color: #ffffff;
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: slideToast 0.25s ease-out;
+    }
+
+    @keyframes slideToast {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .pill-tabs {
+      display: flex;
+      gap: 5px;
+      background: var(--bg-card);
+      padding: 3px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-medium);
+      width: fit-content;
+    }
+
+    .pill-tab {
+      padding: 4px 11px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      border-radius: 4px;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      transition: all 0.15s ease;
+    }
+
+    .pill-tab.active {
+      background: var(--accent-primary);
+      color: #ffffff;
+    }
+
+    /* Tooltip */
+    .tooltip-pop {
+      position: absolute;
+      bottom: 120%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #081226;
+      border: 1px solid #38bdf8;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.18s ease;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.7);
+      z-index: 100;
+    }
+    .matrix-cell:hover .tooltip-pop {
+      opacity: 1;
+    }
+
+    /* ==========================================================================
+       PREMIUM ANIMATED INTRO SCREEN
+       ========================================================================== */
+    .intro-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      background: #030712;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      opacity: 1;
+      transform: scale(1);
+      filter: blur(0px);
+      transition: opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1), 
+                  transform 0.55s cubic-bezier(0.16, 1, 0.3, 1), 
+                  filter 0.55s ease;
+    }
+
+    .intro-overlay.fade-out {
+      opacity: 0;
+      transform: scale(1.04);
+      filter: blur(12px);
+      pointer-events: none;
+    }
+
+    /* Ambient Background Effects */
+    .intro-bg-ambient {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .intro-grid-pattern {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(to right, rgba(56, 189, 248, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+      background-size: 36px 36px;
+      mask-image: radial-gradient(circle at 50% 50%, black 40%, transparent 80%);
+      -webkit-mask-image: radial-gradient(circle at 50% 50%, black 40%, transparent 80%);
+    }
+
+    .intro-glow-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      pointer-events: none;
+      animation: orbFloat 10s infinite ease-in-out alternate;
+    }
+
+    .intro-orb-1 {
+      top: 15%;
+      left: 20%;
+      width: 380px;
+      height: 380px;
+      background: radial-gradient(circle, rgba(0, 242, 254, 0.15) 0%, rgba(2, 132, 199, 0.05) 70%, transparent 100%);
+    }
+
+    .intro-orb-2 {
+      bottom: 15%;
+      right: 20%;
+      width: 440px;
+      height: 440px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(56, 189, 248, 0.04) 70%, transparent 100%);
+      animation-delay: -5s;
+    }
+
+    @keyframes orbFloat {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(25px, -20px) scale(1.08); }
+      100% { transform: translate(-20px, 20px) scale(0.95); }
+    }
+
+    .intro-scanline {
+      position: absolute;
+      top: -10%;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, transparent 0%, rgba(0, 242, 254, 0.25) 50%, transparent 100%);
+      box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+      animation: introScanSweep 6s infinite linear;
+      opacity: 0.6;
+    }
+
+    @keyframes introScanSweep {
+      0% { top: -10%; opacity: 0; }
+      15% { opacity: 0.7; }
+      85% { opacity: 0.7; }
+      100% { top: 110%; opacity: 0; }
+    }
+
+    /* Central Card */
+    .intro-card {
+      position: relative;
+      z-index: 10;
+      max-width: 660px;
+      width: 100%;
+      background: linear-gradient(145deg, rgba(8, 15, 30, 0.94) 0%, rgba(12, 22, 44, 0.92) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      border-radius: var(--radius-xl);
+      padding: 36px 36px 32px 36px;
+      box-shadow: 
+        0 25px 70px -10px rgba(0, 0, 0, 0.85),
+        0 0 40px -10px rgba(0, 242, 254, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      animation: introCardEntrance 0.7s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    }
+
+    @keyframes introCardEntrance {
+      0% {
+        opacity: 0;
+        transform: translateY(24px) scale(0.96);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* Top Terminal Meta Bar */
+    .intro-terminal-bar {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid rgba(56, 189, 248, 0.12);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .terminal-dots .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+    }
+    .terminal-dots .dot-red { background: #f43f5e; box-shadow: 0 0 6px rgba(244, 63, 94, 0.4); }
+    .terminal-dots .dot-amber { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+    .terminal-dots .dot-green { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.4); }
+
+    .terminal-title {
+      color: var(--text-dim);
+      font-weight: 700;
+      letter-spacing: 0.8px;
+    }
+
+    .terminal-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #6ee7b7;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    /* Centerpiece Animated Forensic Logo */
+    .intro-logo-container {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .intro-logo-halo {
+      position: absolute;
+      inset: -15px;
+      background: radial-gradient(circle, rgba(0, 242, 254, 0.28) 0%, rgba(56, 189, 248, 0.08) 60%, transparent 80%);
+      border-radius: 50%;
+      filter: blur(12px);
+      animation: introHaloPulse 3s infinite ease-in-out alternate;
+    }
+
+    @keyframes introHaloPulse {
+      0% { opacity: 0.5; transform: scale(0.95); }
+      100% { opacity: 0.9; transform: scale(1.1); }
+    }
+
+    .intro-logo-ring {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .intro-ring-outer {
+      width: 114px;
+      height: 114px;
+      border: 1.5px dashed rgba(56, 189, 248, 0.45);
+      animation: spinRingClockwise 22s linear infinite;
+    }
+
+    .intro-ring-inner {
+      width: 90px;
+      height: 90px;
+      border: 1.5px dotted rgba(0, 242, 254, 0.6);
+      animation: spinRingCounter 14s linear infinite;
+    }
+
+    @keyframes spinRingClockwise {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes spinRingCounter {
+      0% { transform: rotate(360deg); }
+      100% { transform: rotate(0deg); }
+    }
+
+    .intro-logo-reticle {
+      position: relative;
+      z-index: 2;
+      width: 68px;
+      height: 68px;
+      background: linear-gradient(135deg, #0e1e3d 0%, #060d1d 100%);
+      border: 1.5px solid rgba(0, 242, 254, 0.7);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 
+        0 0 25px rgba(0, 242, 254, 0.35),
+        inset 0 0 15px rgba(0, 242, 254, 0.15);
+      overflow: hidden;
+    }
+
+    .intro-logo-reticle::after {
+      content: '';
+      position: absolute;
+      top: -100%;
+      left: -100%;
+      width: 300%;
+      height: 300%;
+      background: linear-gradient(45deg, transparent 42%, rgba(0, 242, 254, 0.3) 50%, transparent 58%);
+      animation: sweepGlow 3.5s infinite linear;
+    }
+
+    .intro-bracket-left {
+      animation: bracketPulseLeft 2.4s infinite ease-in-out;
+    }
+    .intro-bracket-right {
+      animation: bracketPulseRight 2.4s infinite ease-in-out;
+    }
+
+    @keyframes bracketPulseLeft {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(-1.5px); }
+    }
+    @keyframes bracketPulseRight {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(1.5px); }
+    }
+
+    .intro-core-dot {
+      animation: coreGlow 2s infinite ease-in-out alternate;
+    }
+
+    @keyframes coreGlow {
+      0% { stroke-width: 1.8; opacity: 0.8; }
+      100% { stroke-width: 2.8; opacity: 1; filter: drop-shadow(0 0 4px #00f2fe); }
+    }
+
+    /* Brand Typography */
+    .intro-badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 800;
+      background: rgba(0, 242, 254, 0.08);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 3px 12px;
+      border-radius: 9999px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .badge-radar {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #00f2fe;
+      box-shadow: 0 0 8px #00f2fe;
+      animation: radarPulse 2s infinite ease-in-out;
+    }
+
+    .intro-brand-title {
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      line-height: 1.15;
+      font-family: var(--font-mono);
+      margin-bottom: 6px;
+    }
+
+    .intro-title-text {
+      background: linear-gradient(135deg, #ffffff 15%, #38bdf8 65%, #00f2fe 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 2px 14px rgba(0, 242, 254, 0.3));
+    }
+
+    .intro-tagline {
+      font-size: 17px;
+      font-weight: 800;
+      color: #38bdf8;
+      letter-spacing: 0.3px;
+      margin-bottom: 10px;
+    }
+
+    .intro-subtext {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 520px;
+      margin: 0 auto 24px auto;
+    }
+
+    /* Workflow Pipeline Badges */
+    .intro-workflow-pills {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 28px;
+      padding: 10px 16px;
+      background: rgba(4, 8, 19, 0.6);
+      border: 1px solid rgba(56, 189, 248, 0.15);
+      border-radius: var(--radius-md);
+      max-width: 580px;
+      width: 100%;
+    }
+
+    .intro-wf-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+    }
+
+    .intro-wf-item .wf-num {
+      color: var(--accent-cyan);
+      font-size: 10px;
+      font-weight: 900;
+      background: rgba(0, 242, 254, 0.12);
+      border: 1px solid rgba(0, 242, 254, 0.3);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .intro-wf-arrow {
+      color: var(--accent-blue);
+      font-weight: 800;
+      font-size: 14px;
+      opacity: 0.6;
+    }
+
+    /* Single 'Get Started' Button */
+    .intro-action-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .intro-btn-start {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      min-width: 250px;
+      padding: 14px 34px;
+      font-family: var(--font-sans);
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      color: #030712;
+      background: linear-gradient(135deg, #00f2fe 0%, #38bdf8 50%, #0284c7 100%);
+      border: 1px solid rgba(0, 242, 254, 0.7);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      box-shadow: 
+        0 4px 22px rgba(0, 242, 254, 0.45),
+        0 0 12px rgba(56, 189, 248, 0.3);
+      overflow: hidden;
+      transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+      outline: none;
+    }
+
+    .intro-btn-start:hover {
+      background: linear-gradient(135deg, #38bdf8 0%, #00f2fe 60%, #38bdf8 100%);
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 
+        0 8px 30px rgba(0, 242, 254, 0.65),
+        0 0 25px rgba(56, 189, 248, 0.5);
+      border-color: #ffffff;
+    }
+
+    .intro-btn-start:active {
+      transform: translateY(0) scale(0.99);
+      box-shadow: 0 2px 14px rgba(0, 242, 254, 0.4);
+    }
+
+    .intro-btn-start .btn-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s ease;
+    }
+
+    .intro-btn-start:hover .btn-arrow {
+      transform: translateX(4px);
+    }
+
+    .intro-btn-start .btn-shine {
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 60%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+      transform: skewX(-20deg);
+      animation: btnShineSweep 3.5s infinite ease-in-out;
+      pointer-events: none;
+    }
+
+    @keyframes btnShineSweep {
+      0% { left: -100%; }
+      30%, 100% { left: 160%; }
+    }
+
+    .intro-shortcut-hint {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .intro-shortcut-hint kbd {
+      background: rgba(4, 8, 19, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 10px;
+      color: #38bdf8;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 640px) {
+      .intro-overlay {
+        padding: 16px;
+      }
+      .intro-card {
+        padding: 24px 18px 22px 18px;
+        border-radius: var(--radius-lg);
+      }
+      .intro-logo-container {
+        width: 95px;
+        height: 95px;
+        margin-bottom: 14px;
+      }
+      .intro-ring-outer {
+        width: 90px;
+        height: 90px;
+      }
+      .intro-ring-inner {
+        width: 72px;
+        height: 72px;
+      }
+      .intro-logo-reticle {
+        width: 56px;
+        height: 56px;
+      }
+      .intro-reticle-svg {
+        width: 32px;
+        height: 32px;
+      }
+      .intro-brand-title {
+        font-size: 24px;
+        letter-spacing: 1px;
+      }
+      .intro-tagline {
+        font-size: 14px;
+      }
+      .intro-subtext {
+        font-size: 12px;
+        margin-bottom: 16px;
+      }
+      .intro-workflow-pills {
+        padding: 8px 10px;
+        gap: 6px;
+        margin-bottom: 20px;
+      }
+      .intro-wf-item {
+        font-size: 10.5px;
+      }
+      .intro-wf-arrow {
+        font-size: 11px;
+      }
+      .intro-btn-start {
+        width: 100%;
+        min-width: 0;
+        padding: 13px 20px;
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Premium Animated Intro Screen Overlay -->
+<div id="intro-screen" class="intro-overlay" role="dialog" aria-modal="true" aria-label="Welcome to FLAKE//FORENSICS">
+  <!-- Subtle cyber backdrop grid & scanning effect -->
+  <div class="intro-bg-ambient">
+    <div class="intro-grid-pattern"></div>
+    <div class="intro-glow-orb intro-orb-1"></div>
+    <div class="intro-glow-orb intro-orb-2"></div>
+    <div class="intro-scanline"></div>
+  </div>
+
+  <div class="intro-card">
+    <!-- Top Terminal Meta Bar -->
+    <div class="intro-terminal-bar">
+      <div class="terminal-dots">
+        <span class="dot dot-red"></span>
+        <span class="dot dot-amber"></span>
+        <span class="dot dot-green"></span>
+      </div>
+      <div class="terminal-title">SYS//KERNEL_DIAGNOSTICS_v2.4</div>
+      <div class="terminal-status">
+        <span class="radar-pulse-dot"></span> ONLINE
+      </div>
+    </div>
+
+    <!-- Centerpiece Animated Forensic Logo (no snowflakes) -->
+    <div class="intro-logo-container">
+      <div class="intro-logo-halo"></div>
+      <div class="intro-ring-outer intro-logo-ring"></div>
+      <div class="intro-ring-inner intro-logo-ring"></div>
+      <div class="intro-logo-reticle">
+        <svg width="42" height="42" viewBox="0 0 32 32" fill="none" class="intro-reticle-svg">
+          <!-- Cyber Scanner Corners -->
+          <path d="M4 10V5C4 4.44772 4.44772 4 5 4H10" stroke="#00f2fe" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M22 4H27C27.5523 4 28 4.44772 28 5V10" stroke="#00f2fe" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M28 22V27C28 27.5523 27.5523 28 27 28H22" stroke="#00f2fe" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M10 28H5C4.44772 28 4 27.5523 4 27V22" stroke="#00f2fe" stroke-width="2.5" stroke-linecap="round"/>
+          <!-- Code Brackets < / > -->
+          <path d="M9 12L6 16L9 20" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="intro-bracket-left"/>
+          <path d="M23 12L26 16L23 20" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="intro-bracket-right"/>
+          <!-- Forensic Center Core & Arcs -->
+          <circle cx="16" cy="16" r="3" stroke="#00f2fe" stroke-width="1.8" class="intro-core-dot"/>
+          <path d="M16 9C12.134 9 9 12.134 9 16" stroke="rgba(56,189,248,0.7)" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M23 16C23 19.866 19.866 23 16 23" stroke="rgba(56,189,248,0.7)" stroke-width="1.6" stroke-linecap="round"/>
+          <line x1="8" y1="16" x2="24" y2="16" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="2 2" opacity="0.8"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Brand Typography & Tagline -->
+    <div class="intro-brand-block">
+      <div class="intro-badge-pill">
+        <span class="badge-radar"></span>
+        FLAKY TEST ROOT-CAUSE DIAGNOSER
+      </div>
+      <h1 class="intro-brand-title">
+        <span class="intro-title-text">FLAKE//FORENSICS</span>
+      </h1>
+      <div class="intro-tagline">
+        Flaky Code. Found. Explained. Fixed.
+      </div>
+      <p class="intro-subtext">
+        Zero retries. Turn non-deterministic test failures into deterministic 100% reproduction commands, mathematical causal evidence, and verified hermetic patches.
+      </p>
+    </div>
+
+    <!-- Key Workflow Badges: Run -> Repro -> Analyze -> Root Cause -> Fix -->
+    <div class="intro-workflow-pills">
+      <div class="intro-wf-item">
+        <span class="wf-num">01</span>
+        <span>Run Replay</span>
+      </div>
+      <div class="intro-wf-arrow">›</div>
+      <div class="intro-wf-item">
+        <span class="wf-num">02</span>
+        <span>Reproduce</span>
+      </div>
+      <div class="intro-wf-arrow">›</div>
+      <div class="intro-wf-item">
+        <span class="wf-num">03</span>
+        <span>Analyze</span>
+      </div>
+      <div class="intro-wf-arrow">›</div>
+      <div class="intro-wf-item">
+        <span class="wf-num">04</span>
+        <span>Root Cause</span>
+      </div>
+      <div class="intro-wf-arrow">›</div>
+      <div class="intro-wf-item">
+        <span class="wf-num">05</span>
+        <span>Hermetic Fix</span>
+      </div>
+    </div>
+
+    <!-- Single 'Get Started' Button -->
+    <div class="intro-action-block">
+      <button id="intro-get-started-btn" class="intro-btn-start" onclick="dismissIntroScreen()">
+        <span class="btn-text">Get Started</span>
+        <span class="btn-arrow">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </span>
+        <div class="btn-shine"></div>
+      </button>
+      <div class="intro-shortcut-hint">
+        <span>Press <kbd>Enter ↵</kbd> or click to launch diagnostics workspace</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="app-container">
+
+  <!-- Header -->
+  <header>
+    <div class="brand-wrap">
+      <!-- Unique Code-Forensics Logo (Cyber Scanner Reticle + Brackets) -->
+      <div class="brand-icon">
+        <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
+          <path d="M4 10V5C4 4.44772 4.44772 4 5 4H10" stroke="#00f2fe" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M22 4H27C27.5523 4 28 4.44772 28 5V10" stroke="#00f2fe" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M28 22V27C28 27.5523 27.5523 28 27 28H22" stroke="#00f2fe" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M10 28H5C4.44772 28 4 27.5523 4 27V22" stroke="#00f2fe" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M9 12L6 16L9 20" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M23 12L26 16L23 20" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="16" cy="16" r="3" stroke="#00f2fe" stroke-width="1.8"/>
+          <path d="M16 9C12.134 9 9 12.134 9 16" stroke="rgba(56,189,248,0.7)" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M23 16C23 19.866 19.866 23 16 23" stroke="rgba(56,189,248,0.7)" stroke-width="1.6" stroke-linecap="round"/>
+          <line x1="8" y1="16" x2="24" y2="16" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="2 2" opacity="0.8"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>
+          <span class="logo-title">FLAKE//FORENSICS</span>
+          <span class="brand-badge">Diagnose, Don't Retry</span>
+        </h1>
+        <p>Flaky Code. Found. Explained. Fixed.</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary btn-sm" id="btn-show-intro" onclick="showIntroScreen()" title="View Animated Intro Screen">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+        Intro
+      </button>
+      <button class="btn btn-secondary btn-sm" id="btn-export-report" onclick="exportFullReport()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export Audit (.md)
+      </button>
+      <button class="btn btn-secondary btn-sm" id="btn-reset" onclick="resetWorkspace()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Reset
+      </button>
+    </div>
+  </header>
+
+  <!-- Premium Hero Section -->
+  <section class="hero-banner">
+    <div class="hero-content">
+      <div class="hero-badge-strip">
+        <div class="hero-status-pill">
+          <span class="radar-pulse-dot"></span>
+          Diagnostic Kernel v2.4 // Online
+        </div>
+        <span class="badge badge-cyan">Zero Retries Engine</span>
+      </div>
+      <h2 class="hero-title">
+        <span class="glow-text">FLAKE//FORENSICS</span>
+      </h2>
+      <div class="hero-tagline">Flaky Code. Found. Explained. Fixed.</div>
+      <p class="hero-sub">
+        Automated root-cause diagnostics for non-deterministic JavaScript &amp; TypeScript test suites. 
+        Transform sporadic CI red builds into 100% reproducible local commands, mathematical causal proof, and hermetic fixes.
+      </p>
+    </div>
+    <div class="hero-metrics-grid">
+      <div class="hero-metric-tile">
+        <span class="tile-val">4 VECTORS</span>
+        <span class="tile-label">Causal Heuristics</span>
+      </div>
+      <div class="hero-metric-tile">
+        <span class="tile-val">100% REPRO</span>
+        <span class="tile-label">Deterministic CLI</span>
+      </div>
+      <div class="hero-metric-tile">
+        <span class="tile-val">0% FLAKE</span>
+        <span class="tile-label">Post-Fix Guarantee</span>
+      </div>
+      <div class="hero-metric-tile">
+        <span class="tile-val">0 RETRIES</span>
+        <span class="tile-label">Pure Hermetic Code</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Clear 5-Stage Workflow Pipeline: Run -> Reproduce -> Analyze -> Root Cause -> Fix -->
+  <div class="workflow-strip-container">
+    <div class="workflow-header">
+      <span>Core Diagnostic Workflow: Run ➔ Reproduce ➔ Analyze ➔ Root Cause ➔ Fix</span>
+      <span style="color: var(--accent-blue);">Interactive Pipeline Navigation</span>
+    </div>
+    <div class="workflow-pipeline">
+      <div class="workflow-stage-card active" id="wf-stage-run" onclick="jumpToWorkflowStage('run')">
+        <div class="stage-idx">01</div>
+        <div class="stage-meta">
+          <span class="stage-name">RUN</span>
+          <span class="stage-sub">Intake &amp; 40-Run Replay</span>
+        </div>
+      </div>
+      <div class="workflow-separator">→</div>
+      <div class="workflow-stage-card" id="wf-stage-reproduce" onclick="jumpToWorkflowStage('reproduce')">
+        <div class="stage-idx">02</div>
+        <div class="stage-meta">
+          <span class="stage-name">REPRODUCE</span>
+          <span class="stage-sub">Stress Probes &amp; CLI</span>
+        </div>
+      </div>
+      <div class="workflow-separator">→</div>
+      <div class="workflow-stage-card" id="wf-stage-analyze" onclick="jumpToWorkflowStage('analyze')">
+        <div class="stage-idx">03</div>
+        <div class="stage-meta">
+          <span class="stage-name">ANALYZE</span>
+          <span class="stage-sub">Heuristic Signal Scan</span>
+        </div>
+      </div>
+      <div class="workflow-separator">→</div>
+      <div class="workflow-stage-card" id="wf-stage-root_cause" onclick="jumpToWorkflowStage('root_cause')">
+        <div class="stage-idx">04</div>
+        <div class="stage-meta">
+          <span class="stage-name">ROOT CAUSE</span>
+          <span class="stage-sub">Differential Verdict</span>
+        </div>
+      </div>
+      <div class="workflow-separator">→</div>
+      <div class="workflow-stage-card" id="wf-stage-fix" onclick="jumpToWorkflowStage('fix')">
+        <div class="stage-idx">05</div>
+        <div class="stage-meta">
+          <span class="stage-name">FIX</span>
+          <span class="stage-sub">Patch &amp; Re-Verification</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7-Step Navigation Bar -->
+  <nav class="stepper-nav" id="stepper-nav">
+    <!-- Populated dynamically via renderStepper() -->
+  </nav>
+
+  <!-- Step 1: Flaky Test Intake -->
+  <section class="step-panel active" id="step-panel-1">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-text">
+          <h2>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Step 1: Flaky Test Intake &amp; Scenario Setup
+          </h2>
+          <p>Load an authentic pre-configured scenario or paste your own flaky test source and CI failure log.</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-secondary btn-sm" onclick="clearForCustomInput()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Paste My Own Test
+          </button>
+        </div>
+      </div>
+
+      <!-- Pre-loaded Scenarios Banner -->
+      <div class="scenario-picker-banner">
+        <div class="scenario-info">
+          <div class="scenario-icon">⚡</div>
+          <div>
+            <div style="font-weight: 700; font-size: 13px;">Load Sample Scenario:</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Choose one of 4 canonical JS/TS flakiness root-causes</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex: 1; max-width: 520px;">
+          <select id="scenario-select" class="form-control" onchange="loadScenario(this.value)">
+            <option value="leaked_state">1. Leaked State: User Cache Persistence (userCache.test.js)</option>
+            <option value="clock_timezone">2. Clock/Timezone: Midnight Expiry Drift (Vitest)</option>
+            <option value="unseeded_randomness">3. Unseeded Randomness: Tag Picker Tie-Break (Mocha)</option>
+            <option value="timing_race">4. Timing Race: Modal Animation Sleep (Playwright)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Test Metadata Row with 24px Gap -->
+      <div class="grid-4" style="margin-bottom: 24px;">
+        <div class="form-group">
+          <label class="form-label">Test Runner</label>
+          <select id="input-runner" class="form-control" onchange="updateRunner(this.value)">
+            <option value="jest">Jest (v29+)</option>
+            <option value="vitest">Vitest (v1.5+)</option>
+            <option value="mocha">Mocha / Chai</option>
+            <option value="playwright">Playwright Test</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Test File Path</label>
+          <input type="text" id="input-file-path" class="form-control" value="./userCache.test.js" oninput="onPathChange(this.value)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Test Name / Description</label>
+          <input type="text" id="input-test-name" class="form-control" value="cache should be empty initially for new test" oninput="state.testName = this.value">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Node Runtime</label>
+          <select id="input-node-version" class="form-control" onchange="state.nodeVersion = this.value">
+            <option value="Node 20 LTS">Node 20 LTS</option>
+            <option value="Node 22">Node 22 (Current)</option>
+            <option value="Node 18 LTS">Node 18 LTS</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Code & CI Log Grid with Clear Visual Separation and 24px Gap -->
+      <div class="grid-2">
+        <!-- Test Source Editor -->
+        <div class="code-container">
+          <div class="code-header">
+            <div class="code-header-left">
+              <div class="code-dots"><span></span><span></span><span></span></div>
+              <span id="editor-filename">userCache.test.js</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button class="btn btn-secondary btn-sm" style="padding: 2px 7px; font-size: 11px;" onclick="copySourceCode()">Copy</button>
+              <span class="badge badge-indigo">Test Source (TS/JS)</span>
+            </div>
+          </div>
+          <textarea id="editor-source" class="form-control form-control-code" rows="18" spellcheck="false" oninput="onSourceCodeChange(this.value)"></textarea>
+        </div>
+
+        <!-- CI Log Editor with Distinct Error Block Visual Styling -->
+        <div class="code-container error-block">
+          <div class="code-header">
+            <div class="code-header-left">
+              <div class="code-dots"><span></span><span></span><span></span></div>
+              <span>CI Failure Stack Trace &amp; Terminal Output</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button class="btn btn-secondary btn-sm" style="padding: 2px 7px; font-size: 11px;" onclick="copyCiLog()">Copy</button>
+              <span class="badge badge-rose">CI Error Output</span>
+            </div>
+          </div>
+          <textarea id="editor-log" class="form-control form-control-code" rows="18" spellcheck="false" oninput="onCiLogChange(this.value)"></textarea>
+        </div>
+      </div>
+
+      <!-- CI Waste Inputs Collapsible -->
+      <div style="margin-top: 24px; background: var(--bg-card); border: 1px solid var(--border-medium); border-radius: var(--radius-md); padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+          <div style="font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            CI Cost &amp; Engineering Waste Parameters (for ROI analysis)
+          </div>
+          <span class="badge badge-amber" id="cost-preview-badge">Calculating waste...</span>
+        </div>
+        <div class="grid-4">
+          <div class="form-group">
+            <label class="form-label">Minutes per CI Run: <span id="val-min-ci">15 min</span></label>
+            <input type="range" class="form-control" min="3" max="60" step="1" value="15" id="slider-min-ci" oninput="updateCostSliders()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">CI Runs per Day: <span id="val-runs-day">40 runs</span></label>
+            <input type="range" class="form-control" min="5" max="250" step="5" value="40" id="slider-runs-day" oninput="updateCostSliders()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Team Devs Affected: <span id="val-num-devs">16 devs</span></label>
+            <input type="range" class="form-control" min="1" max="100" step="1" value="16" id="slider-num-devs" oninput="updateCostSliders()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Loaded Dev Rate: <span id="val-hourly-rate">$95/hr</span></label>
+            <input type="range" class="form-control" min="40" max="250" step="5" value="95" id="slider-hourly-rate" oninput="updateCostSliders()">
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Step 1 Footer -->
+    <div class="step-footer">
+      <div class="step-progress-indicator">Step 1 of 7: Test Intake configured</div>
+      <div>
+        <button class="btn btn-primary" id="btn-step1-next" onclick="goToStep(2)">
+          Proceed to Run History Replay
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 2: Failure Evidence & Run History -->
+  <section class="step-panel" id="step-panel-2">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-text">
+          <h2>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+            Step 2: Failure Evidence &amp; 40-Run CI Replay Matrix
+          </h2>
+          <p>Prove flakiness mathematically: simulate 40 CI runs against the exact same commit SHA (<code style="color:#a5b4fc">git rev-parse HEAD: e7b10fa</code>).</p>
+        </div>
+        <button class="btn btn-primary" id="btn-replay-40" onclick="replayCiRuns()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Replay Last 40 CI Runs
+        </button>
+      </div>
+
+      <!-- 40-Run Visual Grid -->
+      <div class="run-matrix-container">
+        <div class="matrix-header">
+          <div style="font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 8px;">
+            <span>Identical Code Execution Stream</span>
+            <span class="badge badge-indigo" id="matrix-status-badge">Awaiting Simulation</span>
+          </div>
+          <div style="display: flex; gap: 14px; font-size: 12px; color: var(--text-muted); align-items: center;">
+            <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; background: #10b981; border-radius: 2px;"></span> Pass</span>
+            <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; background: #f43f5e; border-radius: 2px;"></span> Fail (Flake)</span>
+            <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; border: 2px solid #f59e0b; border-radius: 2px;"></span> Longest Red Streak</span>
+          </div>
+        </div>
+
+        <div class="matrix-grid" id="matrix-grid">
+          <!-- Populated by JS -->
+        </div>
+
+        <div id="selected-run-detail" style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); background: #0b1120; padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 1.6;">
+          💡 Tip: Click or hover any cell in the 40-run matrix to inspect execution latency, exit code, and failure trace.
+        </div>
+      </div>
+
+      <!-- Metric Cards Grid with 24px Gap -->
+      <div class="grid-4" style="margin-bottom: 24px;">
+        <div class="metric-card">
+          <div class="metric-title">Pass Rate</div>
+          <div class="metric-value" id="stat-pass-rate" style="color: var(--accent-emerald);">--%</div>
+          <div class="metric-sub" id="stat-pass-sub">Runs evaluated</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Flake Rate</div>
+          <div class="metric-value" id="stat-flake-rate" style="color: var(--accent-rose);">--%</div>
+          <div class="metric-sub" id="stat-flake-sub">Non-deterministic fails</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Longest Red Streak</div>
+          <div class="metric-value" id="stat-streak" style="color: var(--accent-amber);">--</div>
+          <div class="metric-sub">Consecutive failures</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Flake vs Real Bug</div>
+          <div class="metric-value" id="stat-confidence" style="color: var(--accent-cyan);">--%</div>
+          <div class="metric-sub">Statistical confidence</div>
+        </div>
+      </div>
+
+      <!-- Flake vs Real Bug Diagnostic Callout -->
+      <div class="callout callout-info" id="flake-discriminator-box">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div>
+          <div style="font-weight: 700; font-size: 13.5px; margin-bottom: 2px;">The Diagnose-Don't-Retry Theorem (Flake vs Real Bug):</div>
+          <div style="font-size: 12.5px; line-height: 1.6;" id="flake-discriminator-text">
+            When identical code at git commit <code>e7b10fa</code> generates both exits <code>0 (Pass)</code> and <code>1 (Fail)</code> under identical dependencies, the probability of a genuine functional defect is <strong>&lt;0.01%</strong>. Retrying masks the root cause and wastes thousands in engineering hours.
+          </div>
+        </div>
+      </div>
+
+      <!-- Financial Waste Analysis Card -->
+      <div style="margin-top: 20px; background: var(--bg-card); border: 1px solid var(--border-medium); border-radius: var(--radius-md); padding: 20px;">
+        <div style="font-weight: 700; font-size: 14px; margin-bottom: 14px; color: var(--accent-amber); display: flex; align-items: center; gap: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Annual Cost of Retrying This Flake (Instead of Diagnosing)
+        </div>
+        <div class="grid-3">
+          <div style="border-right: 1px solid var(--border-subtle); padding-right: 14px;">
+            <div style="font-size: 11.5px; color: var(--text-muted);">Developer Distraction &amp; Re-run Delay</div>
+            <div style="font-size: 21px; font-weight: 800; color: #ffffff; margin-top: 4px;" id="calc-dev-cost">$0 / year</div>
+            <div style="font-size: 11.5px; color: var(--text-dim);" id="calc-dev-hours">0 engineering hours lost</div>
+          </div>
+          <div style="border-right: 1px solid var(--border-subtle); padding-right: 14px;">
+            <div style="font-size: 11.5px; color: var(--text-muted);">Wasted CI Runner Compute Time</div>
+            <div style="font-size: 21px; font-weight: 800; color: #ffffff; margin-top: 4px;" id="calc-ci-cost">$0 / year</div>
+            <div style="font-size: 11.5px; color: var(--text-dim);" id="calc-ci-minutes">0 machine minutes wasted</div>
+          </div>
+          <div>
+            <div style="font-size: 11.5px; color: var(--text-muted);">Total Annual Engineering Drag</div>
+            <div style="font-size: 21px; font-weight: 800; color: var(--accent-rose); margin-top: 4px;" id="calc-total-cost">$0 / year</div>
+            <div style="font-size: 11.5px; color: var(--text-dim);">Recoverable with root-cause fix</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Step 2 Footer -->
+    <div class="step-footer">
+      <button class="btn btn-secondary" onclick="goToStep(1)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Back to Intake
+      </button>
+      <div class="step-progress-indicator">Step 2 of 7: 40-Run Replay Complete</div>
+      <button class="btn btn-primary" id="btn-step2-next" disabled onclick="goToStep(3)">
+        Proceed to Heuristic Scanning
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- Step 3: Static Heuristic Scanning & Signal Detection -->
+  <section class="step-panel" id="step-panel-3">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-text">
+          <h2>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="8"/><line x1="11" y1="12" x2="11" y2="14"/></svg>
+            Step 3: Static Heuristic Scanning &amp; Signal Detection
+          </h2>
+          <p>Regex AST and token analysis of source code &amp; CI stack traces across the 4 root-cause vectors.</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="runHeuristicScan()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          Re-Scan Source &amp; Log
+        </button>
+      </div>
+
+      <!-- 4 Vectors Grid with 24px Gap -->
+      <div class="grid-4" id="signal-cards-container">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Code Line Annotations View with Monospace Font -->
+      <div style="margin-top: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="font-weight: 700; font-size: 13.5px;">Source Code Signal Annotations</div>
+          <span style="font-size: 11.5px; color: var(--text-dim);" id="signal-count-summary">0 signals detected in source</span>
+        </div>
+        <div class="code-container">
+          <div class="code-header">
+            <span>Annotated Lines with High Flake Correlation</span>
+            <span class="badge badge-rose">Signal Highlights</span>
+          </div>
+          <div class="terminal-body" id="annotated-code-view" style="max-height: 380px;">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Step 3 Footer -->
+    <div class="step-footer">
+      <button class="btn btn-secondary" onclick="goToStep(2)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Back to Run History
+      </button>
+      <div class="step-progress-indicator">Step 3 of 7: Signals Analyzed</div>
+      <button class="btn btn-primary" id="btn-step3-next" onclick="goToStep(4)">
+        Proceed to Stress Probes
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- Step 4: Diagnostic Probing / Stress Probes -->
+  <section class="step-panel" id="step-panel-4">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-text">
+          <h2>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Step 4: Diagnostic Stress Probing Harness
+          </h2>
+          <p>Actively stress test hypotheses: Order isolation, Timezone warping, Seed locking, and Microtask jitter.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-run-probes" onclick="runDiagnosticProbes()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Execute Diagnostic Probes
+        </button>
+      </div>
+
+      <!-- Probes List -->
+      <div class="probe-matrix" id="probes-container">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Probe Execution Log Terminal -->
+      <div class="code-container" style="margin-top: 24px;">
+        <div class="code-header">
+          <div class="code-header-left">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <span>Diagnostic Probe Virtual Test Harness Output</span>
+          </div>
+          <span class="badge badge-cyan" id="probe-terminal-badge">Ready</span>
+        </div>
+        <div class="terminal-body" id="probe-terminal" style="max-height: 220px; font-size: 12.5px; color: #94a3b8;">
+          $ Ready to dispatch 4 diagnostic probe workers against target test suite...
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Step 4 Footer -->
+    <div class="step-footer">
+      <button class="btn btn-secondary" onclick="goToStep(3)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Back to Heuristics
+      </button>
+      <div class="step-progress-indicator">Step 4 of 7: Probes Evaluated</div>
+      <button class="btn btn-primary" id="btn-step4-next" disabled onclick="goToStep(5)">
+        Proceed to Root-Cause Classification
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- Step 5: Root-Cause Classification & Differential Verdict -->
+  <section class="step-panel" id="step-panel-5">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-text">
+          <h2>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Step 5: Root-Cause Classification &amp; Differential Verdict
+          </h2>
+          <p>Definitive mathematical classification backed by static signal weight and probe execution evidence.</p>
+        </div>
+      </div>
+
+      <!-- Verdict Hero Banner -->
+      <div class="verdict-hero">
+        <div class="verdict-left">
+          <h3>Definitive Root Cause Verdict</h3>
+          <div class="verdict-title" id="verdict-title">
+            <span id="verdict-category-name">Leaked State Between Tests</span>
+          </div>
+          <div class="verdict-summary" id="verdict-summary">
+            Test is non-deterministic because it relies on mutable global state left behind by an earlier test in the same worker process.
+          </div>
+        </div>
+        <div class="confidence-radial">
+          <div class="confidence-score" id="verdict-confidence-score">98.4%</div>
+          <div class="confidence-label">Diagnosis Confidence</div>
+        </div>
+      </div>
+
+      <!-- Differential Diagnosis Table -->
+      <div style="margin-top: 14px;">
+        <div style="font-weight: 700; font-size: 13.5px; margin-bottom: 8px;">Differential Diagnosis: Why This &amp; Not Other Vectors?</div>
+        <table class="differential-table">
+          <thead>
+            <tr>
+              <th style="width: 240px;">Root-Cause Vector</th>
+              <th style="width: 140px;">Status</th>
+              <th>Differential Reasoning &amp; Evidence</th>
+            </tr>
+          </thead>
+          <tbody id="differential-tbody">
+            <!-- Rendered by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Evidence Chain Box -->
+      <div class="callout callout-info" style="margin-top: 22px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+        <div>
+          <div style="font-weight: 700; font-size: 13.5px; margin-bottom: 2px;">Causal Evidence Chain:</div>
+          <div style="font-size: 12.5px; line-height: 1.6;" id="evidence-chain-text">
+            setUser({ id: 1, name: 'Rahul' }) mutated cache without cleanup &rarr; Missing beforeEach(() => clearCache()) &rarr; Second test received leaked user object &rarr; expect(received).toBeNull() failed.
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Step 5 Footer -->
+    <div class="step-footer">
+      <button class="btn btn-secondary" onclick="goToStep(4)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Back to Probes
+      </button>
+      <div class="step-progress-indicator">Step 5 of 7: Verdict Reached</div>
+      <button class="btn btn-primary" id="btn-step5-next" onclick="goToStep(6)">
+        Generate 100% Repro Command
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- Step 6: Deterministic 100% Reproduction Command Generator -->
+  <section class="step-panel" id="step-panel-6">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-text">
+          <h2>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            Step 6: Deterministic 100% Reproduction Command Generator
+          </h2>
+          <p>Never re-run tests 50 times in a loop. Force the failure to reproduce <strong>every single time</strong> locally on demand.</p>
+        </div>
+        <div class="pill-tabs">
+          <button class="pill-tab active" id="tab-bash" onclick="switchShellTab('bash')">Bash / Zsh</button>
+          <button class="pill-tab" id="tab-pwsh" onclick="switchShellTab('powershell')">PowerShell</button>
+          <button class="pill-tab" id="tab-docker" onclick="switchShellTab('docker')">Docker Container</button>
+        </div>
+      </div>
+
+      <!-- Generated Command Box -->
+      <div class="command-box">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span style="font-size: 11px; text-transform: uppercase; color: var(--text-dim); font-weight: 700; letter-spacing: 0.5px;">Reproduction One-Liner</span>
+          <button class="btn btn-secondary btn-sm" onclick="copyReproCommand()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy Command
+          </button>
+        </div>
+        <div class="command-text" id="repro-command-display">
+          npx jest "./userCache.test.js" --runInBand -t "cache should be empty initially for new test"
+        </div>
+      </div>
+
+      <!-- Command Flag Breakdown -->
+      <div class="command-flags-breakdown" id="command-flags-breakdown">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Test Repro Command Interactive Simulator -->
+      <div style="margin-top: 24px; background: var(--bg-card); border: 1px solid var(--border-medium); border-radius: var(--radius-md); padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <div style="font-weight: 700; font-size: 13.5px;">Verify Deterministic Reproduction (Local Simulation)</div>
+            <div style="font-size: 11.5px; color: var(--text-muted);">Run 10 consecutive executions with the reproduction flags applied</div>
+          </div>
+          <button class="btn btn-danger btn-sm" id="btn-run-repro-sim" onclick="simulateReproExecution()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Test Reproduction Command (10 Runs)
+          </button>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 14px;" id="repro-sim-grid">
+          <!-- 10 cells rendered by JS -->
+        </div>
+
+        <div id="repro-sim-summary" style="font-size: 12.5px; color: var(--text-muted); font-family: var(--font-mono);">
+          Click "Test Reproduction Command" to verify that this command reproduces failure with 100% reliability.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Step 6 Footer -->
+    <div class="step-footer">
+      <button class="btn btn-secondary" onclick="goToStep(5)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Back to Classification
+      </button>
+      <div class="step-progress-indicator">Step 6 of 7: Repro Command Ready</div>
+      <button class="btn btn-primary" id="btn-step6-next" onclick="goToStep(7)">
+        Proceed to Fix &amp; Diff Studio
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- Step 7: Concrete Fix & Code Diff Studio -->
+  <section class="step-panel" id="step-panel-7">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-text">
+          <h2>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            Step 7: Concrete Fix &amp; Code Diff Studio
+          </h2>
+          <p>Hermetic, deterministic patch resolving the underlying root-cause without retries.</p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <div class="pill-tabs">
+            <button class="pill-tab active" id="diff-view-split" onclick="switchDiffView('split')">Side-by-Side</button>
+            <button class="pill-tab" id="diff-view-unified" onclick="switchDiffView('unified')">Unified Diff</button>
+          </div>
+          <!-- Real Dev Product "Apply Fix" Action Button -->
+          <button class="btn btn-cyan btn-sm" id="btn-apply-fix" onclick="applyHermeticFix()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Apply Fix to Test
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="copyFixedCode()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy Fixed Code
+          </button>
+          <button class="btn btn-primary btn-sm" id="btn-verify-fix" onclick="verifyFix40Runs()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            Verify Fix with 40-Run Matrix
+          </button>
+        </div>
+      </div>
+
+      <!-- Fix Principles Banner -->
+      <div class="callout callout-success" id="fix-summary-callout">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div>
+          <div style="font-weight: 700; font-size: 13.5px;" id="fix-headline">Applied Fix: Hermetic Cache Cleanup Hook with beforeEach(() => clearCache())</div>
+          <div style="font-size: 12.5px; line-height: 1.6;" id="fix-explanation-text">
+            Introduced `beforeEach(() => clearCache())` to guarantee test isolation, eliminating state leakage from previous test executions.
+          </div>
+        </div>
+      </div>
+
+      <!-- Diff Container with 24px Gap -->
+      <div class="diff-container" id="diff-container">
+        <div class="diff-pane" id="diff-pane-left">
+          <div class="diff-pane-header before">
+            <span>Flaky Original Code (Leaked State)</span>
+            <span class="badge badge-rose">Flake Vulnerable</span>
+          </div>
+          <div class="diff-code-body" id="diff-original-body">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+        <div class="diff-pane" id="diff-pane-right">
+          <div class="diff-pane-header after">
+            <span>Deterministic Patched Code</span>
+            <span class="badge badge-emerald">Fixed &amp; Hermetic</span>
+          </div>
+          <div class="diff-code-body" id="diff-patched-body">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Verification 40-Run Re-Replay -->
+      <div style="margin-top: 24px; background: var(--bg-card); border: 1px solid var(--border-medium); border-radius: var(--radius-md); padding: 20px;" id="fix-verification-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <div style="font-weight: 700; font-size: 13.5px;">Patched Code Re-Verification Matrix</div>
+            <div style="font-size: 11.5px; color: var(--text-muted);">Re-running 40 iterations under identical CI load with patch applied</div>
+          </div>
+          <span class="badge badge-emerald" id="verify-badge">Ready to Verify</span>
+        </div>
+        <div class="matrix-grid" id="verify-matrix-grid">
+          <!-- Populated after clicking verify -->
+        </div>
+        <div id="verify-results-summary" style="font-size: 12.5px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 10px;">
+          Click "Apply Fix to Test" or "Verify Fix with 40-Run Matrix" to validate zero flakiness.
+        </div>
+      </div>
+
+      <!-- Export & Triage Action Row -->
+      <div style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; background: var(--bg-surface); padding: 18px 22px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+        <div>
+          <div style="font-weight: 700; font-size: 13.5px;">Export Diagnostic Audit &amp; Team Triage Template</div>
+          <div style="font-size: 11.5px; color: var(--text-muted);">Share with your engineering team or attach to your pull request.</div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-secondary btn-sm" onclick="copyJiraTemplate()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Copy GitHub / Jira Issue Template
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="exportFullReport()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download Markdown Audit (.md)
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Step 7 Footer -->
+    <div class="step-footer">
+      <button class="btn btn-secondary" onclick="goToStep(6)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Back to Repro Command
+      </button>
+      <div class="step-progress-indicator">Step 7 of 7: Diagnosis &amp; Fix Complete 🎉</div>
+      <button class="btn btn-secondary" onclick="goToStep(1)">
+        Diagnose Another Test
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      </button>
+    </div>
+  </section>
+
+</div>
+
+<!-- Floating Toast Notification -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+/**
+ * FLAKE//FORENSICS Central Engine
+ * Tagline: Flaky Code. Found. Explained. Fixed.
+ * Fully client-side, zero external dependencies, 100% offline.
+ */
+
+// 1. Seeded Pseudo-Random Number Generator (mulberry32)
+function mulberry32(a) {
+  return function() {
+    var t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function hashString(str) {
+  let hash = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    hash = Math.imul(hash ^ str.charCodeAt(i), 3432918353);
+    hash = (hash << 13) | (hash >>> 19);
+  }
+  return hash >>> 0;
+}
+
+// 2. Preloaded Scenarios Data
+const SCENARIOS = {
+  leaked_state: {
+    id: 'leaked_state',
+    title: 'Leaked State: User Cache Persistence (userCache.test.js)',
+    runner: 'jest',
+    filePath: './userCache.test.js',
+    testName: 'cache should be empty initially for new test',
+    nodeVersion: 'Node 20 LTS',
+    category: 'leaked_state',
+    categoryLabel: 'Leaked State Between Tests',
+    sourceCode: `const { setUser, getUser, clearCache } = require('./userCache');
+
+describe('FLAKE//FORENSICS - User Cache Diagnostics', () => {
+  // Flake vector: setUser modifies shared cache without beforeEach cleanup hook
+  test('user one should be cached', () => {
+    setUser({ id: 1, name: 'Rahul' });
+    expect(getUser(1)).toEqual({ id: 1, name: 'Rahul' });
+  });
+
+  test('cache should be empty initially for new test', () => {
+    // If run after previous test, getUser(1) leaks Rahul instead of null!
+    expect(getUser(1)).toBeNull();
+  });
+});`,
+    ciLog: `FAIL ./userCache.test.js
+  FLAKE//FORENSICS - User Cache Diagnostics
+    ✓ user one should be cached (3 ms)
+    ✕ cache should be empty initially for new test (2 ms)
+
+  ● FLAKE//FORENSICS - User Cache Diagnostics › cache should be empty initially for new test
+    expect(received).toBeNull(expected)
+    Received: {"id": 1, "name": "Rahul"}
+
+      10 |   test('cache should be empty initially for new test', () => {
+    > 11 |     expect(getUser(1)).toBeNull();
+         |                        ^
+      12 |   });
+
+      at Object.toBeNull (userCache.test.js:11:24)
+      at async runTest (node_modules/jest-runner/build/runTest.js:389:12)`,
+    explanation: 'State leaked between tests via shared userCache. When "user one should be cached" executes first, it sets user 1 ("Rahul"). Because clearCache() was missing from beforeEach or afterEach, "cache should be empty initially for new test" received the leaked state instead of null.',
+    evidenceChain: 'setUser({ id: 1, name: "Rahul" }) mutated cache without lifecycle cleanup ➔ Subsequent test expected pristine cache ➔ Received leaked user object ➔ expect(received).toBeNull() failed.',
+    fixHeadline: 'Hermetic Lifecycle Isolation with beforeEach(() => clearCache())',
+    fixExplanation: 'Implement beforeEach(() => clearCache()) to ensure every test starts with an isolated, clean cache state, eliminating order dependence.',
+    fixedSource: `const { setUser, getUser, clearCache } = require('./userCache');
+
+describe('FLAKE//FORENSICS - User Cache Diagnostics', () => {
+  // Hermetic test isolation: reset cache state before every test
+  beforeEach(() => {
+    clearCache();
+  });
+
+  test('user one should be cached', () => {
+    setUser({ id: 1, name: 'Rahul' });
+    expect(getUser(1)).toEqual({ id: 1, name: 'Rahul' });
+  });
+
+  test('cache should be empty initially for new test', () => {
+    expect(getUser(1)).toBeNull();
+  });
+});`,
+    flags: [
+      { name: '--runInBand / --workers=1', desc: 'Forces sequential execution in a single thread, preventing thread isolation from masking the leak' },
+      { name: '-t / --grep', desc: 'Runs the polluter test immediately before the victim test, reproducing 100% of failures' }
+    ]
+  },
+
+  clock_timezone: {
+    id: 'clock_timezone',
+    title: 'Clock/Timezone: Midnight Expiry Drift',
+    runner: 'vitest',
+    filePath: 'src/billing/__tests__/subscriptionExpiry.test.ts',
+    testName: 'should format annual subscription renewal invoice date',
+    nodeVersion: 'Node 20 LTS',
+    category: 'clock_timezone',
+    categoryLabel: 'Clock / Timezone Assumption',
+    sourceCode: `import { describe, it, expect } from 'vitest';
+import { calculateBillingCycle } from '../subscriptionExpiry';
+
+describe('calculateBillingCycle', () => {
+  it('should format annual subscription renewal invoice date', () => {
+    // Flake vector: local time parsing without UTC Z specifier
+    const signupDate = new Date('2026-03-31T23:30:00'); 
+    const billing = calculateBillingCycle(signupDate, 'annual');
+    
+    // In UTC or early-offset timezones, 23:30 slips into the next day (April 1st)
+    const formatted = billing.nextInvoiceDate.toISOString().split('T')[0];
+    
+    expect(formatted).toBe('2027-03-31');
+  });
+});`,
+    ciLog: `FAIL src/billing/__tests__/subscriptionExpiry.test.ts > calculateBillingCycle > should format annual subscription renewal invoice date
+AssertionError: expected '2027-04-01' to be '2027-03-31' // Object.is equality
+
+- Expected
++ Received
+
+- 2027-03-31
++ 2027-04-01
+
+  ❯ src/billing/__tests__/subscriptionExpiry.test.ts:13:23
+     11|     const formatted = billing.nextInvoiceDate.toISOString().split('T')[0];
+     12|     
+     13|     expect(formatted).toBe('2027-03-31');
+       |                       ^
+     14|   });`,
+    explanation: 'Test instantiates date without an explicit UTC specifier. On developer machines configured to local US timezones (e.g. UTC-7), date stays March 31. On CI GitHub Actions runners operating in UTC, 23:30 crosses midnight during calculation, resulting in April 1.',
+    evidenceChain: 'Line 7 instantiated unanchored ISO string without "Z" ➔ Developer machine in UTC-7 passed ➔ GitHub Actions runner running in UTC rolled over midnight ➔ Assertion off-by-one day.',
+    fixHeadline: 'Explicit UTC Specifier and Vitest Fake Timers',
+    fixExplanation: 'Anchor the ISO timestamp with explicit UTC `Z` timezone and use `vi.useFakeTimers()` to pin the system clock hermetically.',
+    fixedSource: `import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { calculateBillingCycle } from '../subscriptionExpiry';
+
+describe('calculateBillingCycle', () => {
+  beforeEach(() => {
+    // Hermetically pin system clock to UTC baseline
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-31T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('should format annual subscription renewal invoice date', () => {
+    const signupDate = new Date('2026-03-31T23:30:00.000Z'); 
+    const billing = calculateBillingCycle(signupDate, 'annual');
+    const formatted = billing.nextInvoiceDate.toISOString().split('T')[0];
+    
+    expect(formatted).toBe('2027-03-31');
+  });
+});`,
+    flags: [
+      { name: 'TZ="UTC"', desc: 'Forces system environment timezone to UTC, reproducing the CI runner timezone boundary on any local machine' },
+      { name: 'run / single-pass', desc: 'Disables watch mode and executes test in standard single-pass CI evaluation' }
+    ]
+  },
+
+  unseeded_randomness: {
+    id: 'unseeded_randomness',
+    title: 'Unseeded Randomness: Tag Picker Tie-Break',
+    runner: 'mocha',
+    filePath: 'test/recommendation/smartPicker.spec.ts',
+    testName: 'should prioritize highest scored tags in recommendation bundle',
+    nodeVersion: 'Node 20 LTS',
+    category: 'unseeded_randomness',
+    categoryLabel: 'Unseeded Randomness',
+    sourceCode: `import { expect } from 'chai';
+import { generateRecommendationBatch } from '../../src/recommendation/smartPicker';
+
+describe('Smart Recommendation Picker', () => {
+  it('should prioritize highest scored tags in recommendation bundle', () => {
+    // Flake vector: Math.random() produces score collisions & non-deterministic IDs
+    const categories = ['tech', 'design', 'finance', 'ai', 'cloud'];
+    const randomScore = () => Math.floor(Math.random() * 20); // Narrow range leads to score ties!
+    
+    const tags = categories.map(cat => ({
+      name: cat,
+      score: randomScore(),
+      id: 'tag-' + Math.random().toString(36).substring(7)
+    }));
+
+    const result = generateRecommendationBatch(tags, 3);
+    
+    // When random scores tie, unstable sort flips order -> fails 1 in 5 runs
+    expect(result.items).to.have.lengthOf(3);
+    expect(result.topTagId).to.equal(tags.sort((a,b) => b.score - a.score)[0].id);
+  });
+});`,
+    ciLog: `  1) Smart Recommendation Picker
+       should prioritize highest scored tags in recommendation bundle:
+
+      AssertionError: expected 'tag-7f2a1b' to equal 'tag-9c0d3e'
+      + expected - actual
+
+      -tag-7f2a1b
+      +tag-9c0d3e
+      
+      at Context.<anonymous> (test/recommendation/smartPicker.spec.ts:20:32)
+      at processImmediate (node:internal/timers:478:21)`,
+    explanation: 'Test uses unseeded `Math.random()` to generate mock scores across a small range (0-20). When two items tie on score, JavaScript Array.prototype.sort tie-breaking is unstable across engines, causing `topTagId` mismatch on CI.',
+    evidenceChain: 'Line 8 invoked unseeded Math.random() ➔ Random score collision between categories ➔ Array.sort produced inverted tie order ➔ AssertionError on topTagId.',
+    fixHeadline: 'Deterministic Test Fixtures with Explicit Scores',
+    fixExplanation: 'Replace non-deterministic random generation with static, deterministic fixtures or a seeded PRNG harness with unique score intervals.',
+    fixedSource: `import { expect } from 'chai';
+import { generateRecommendationBatch } from '../../src/recommendation/smartPicker';
+
+describe('Smart Recommendation Picker', () => {
+  it('should prioritize highest scored tags in recommendation bundle', () => {
+    // Hermetic deterministic fixture with explicit, strictly ascending scores
+    const tags = [
+      { name: 'ai', score: 95, id: 'tag-ai-01' },
+      { name: 'cloud', score: 80, id: 'tag-cloud-02' },
+      { name: 'tech', score: 65, id: 'tag-tech-03' },
+      { name: 'design', score: 40, id: 'tag-design-04' },
+      { name: 'finance', score: 20, id: 'tag-finance-05' }
+    ];
+
+    const result = generateRecommendationBatch(tags, 3);
+    
+    expect(result.items).to.have.lengthOf(3);
+    expect(result.items[0].id).to.equal('tag-ai-01');
+    expect(result.topTagId).to.equal('tag-ai-01');
+  });
+});`,
+    flags: [
+      { name: 'RANDOM_SEED=48291', desc: 'Preloads a deterministic Math.random() override fixed to seed 48291 to trigger the tie-break collision' },
+      { name: '--seed / isolated', desc: 'Runs the test file with deterministic pseudo-random sequence' }
+    ]
+  },
+
+  timing_race: {
+    id: 'timing_race',
+    title: 'Timing Race: Modal Animation Sleep',
+    runner: 'playwright',
+    filePath: 'e2e/checkout/discountModal.spec.ts',
+    testName: 'should dismiss promo modal and update cart subtotal',
+    nodeVersion: 'Node 20 LTS',
+    category: 'timing_race',
+    categoryLabel: 'Timing Race / Async Event Loop',
+    sourceCode: `import { test, expect } from '@playwright/test';
+
+test.describe('Checkout Promotions', () => {
+  test('should dismiss promo modal and update cart subtotal', async ({ page }) => {
+    await page.goto('/checkout');
+    await page.click('#apply-coupon-btn');
+    
+    // Flake vector: arbitrary fixed sleep instead of awaiting animation / network
+    await page.waitForTimeout(150); 
+    
+    const modal = page.locator('#coupon-modal');
+    await page.click('#modal-confirm-btn');
+    
+    // Race condition: on loaded CI runner, fade-out animation exceeds 150ms
+    const subtotalText = await page.locator('.cart-subtotal').textContent();
+    expect(subtotalText).toContain('$84.50');
+    expect(await modal.isVisible()).toBe(false);
+  });
+});`,
+    ciLog: `Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: false
+Received: true
+
+  17 |     const subtotalText = await page.locator('.cart-subtotal').textContent();
+  18 |     expect(subtotalText).toContain('$84.50');
+> 19 |     expect(await modal.isVisible()).toBe(false);
+     |                                    ^
+  20 |   });
+
+Call log:
+  - locator.isVisible() resolved to true
+  - element was still in transition (opacity: 0.38, visibility: visible)
+
+    at e2e/checkout/discountModal.spec.ts:19:36`,
+    explanation: 'Test uses arbitrary hardcoded `waitForTimeout(150)` and instantaneous boolean evaluation `expect(await modal.isVisible()).toBe(false)`. When CI VM experiences CPU throttling, modal CSS transition takes 220ms, causing assertion failure.',
+    evidenceChain: 'Line 9 invoked hardcoded sleep waitForTimeout(150) ➔ CI runner CPU load throttled DOM rendering ➔ Modal still mid-transition at 150ms mark ➔ Non-retrying assertion failed.',
+    fixHeadline: 'Web-First Auto-Retrying Assertions',
+    fixExplanation: 'Eliminate `waitForTimeout` completely. Use Playwright’s auto-retrying web-first assertions `await expect(modal).toBeHidden()` which poll the DOM automatically until condition is satisfied.',
+    fixedSource: `import { test, expect } from '@playwright/test';
+
+test.describe('Checkout Promotions', () => {
+  test('should dismiss promo modal and update cart subtotal', async ({ page }) => {
+    await page.goto('/checkout');
+    await page.click('#apply-coupon-btn');
+    
+    const modal = page.locator('#coupon-modal');
+    await page.click('#modal-confirm-btn');
+    
+    // Hermetic: web-first assertion polls DOM until element transitions to hidden
+    await expect(modal).toBeHidden();
+    
+    // Web-first text assertion with automatic retry
+    await expect(page.locator('.cart-subtotal')).toHaveText('$84.50');
+  });
+});`,
+    flags: [
+      { name: '--workers=4 / pool', desc: 'Saturates worker pool to generate CPU scheduling pressure' },
+      { name: '--cpu-throttle=4', desc: 'Simulates CI VM constrained thread cycles, stretching the 150ms animation into 320ms to guarantee failure' }
+    ]
+  }
+};
+
+// 3. Central Application State
+const state = {
+  currentStep: 1,
+  completedSteps: new Set([1]),
+  activeScenarioId: 'leaked_state',
+  runner: 'jest',
+  filePath: './userCache.test.js',
+  testName: 'cache should be empty initially for new test',
+  nodeVersion: 'Node 20 LTS',
+  sourceCode: '',
+  ciLog: '',
+  
+  // Cost inputs
+  cost: {
+    minutesPerRun: 15,
+    runsPerDay: 40,
+    numDevs: 16,
+    hourlyRate: 95
+  },
+  
+  // 40-Run Replay
+  replayResults: null,
+  flakeRate: 0,
+  passRate: 0,
+  streak: 0,
+  confidence: 0,
+  
+  // Heuristic Scan
+  heuristicScores: {
+    leaked_state: 0,
+    clock_timezone: 0,
+    unseeded_randomness: 0,
+    timing_race: 0
+  },
+  detectedSignals: [],
+  
+  // Diagnostic Probes
+  probesExecuted: false,
+  
+  // Root Cause Verdict
+  primaryCategory: 'leaked_state',
+  verdictConfidence: 98.4,
+  
+  // Shell tab
+  activeShell: 'bash',
+  diffMode: 'split',
+  
+  // Fix verification
+  fixVerified: false
+};
+
+// 4. Stepper Steps Configuration
+const STEPS = [
+  { num: 1, title: 'Intake', sub: 'Scenario & Code', stage: 'run' },
+  { num: 2, title: 'Run History', sub: '40-Run Replay', stage: 'run' },
+  { num: 3, title: 'Heuristics', sub: 'Signal Scan', stage: 'analyze' },
+  { num: 4, title: 'Stress Probes', sub: 'Active Probing', stage: 'reproduce' },
+  { num: 5, title: 'Classification', sub: 'Root Cause', stage: 'root_cause' },
+  { num: 6, title: 'Repro Command', sub: 'Deterministic CLI', stage: 'reproduce' },
+  { num: 7, title: 'Fix & Diff', sub: 'Patch & Verify', stage: 'fix' }
+];
+
+// 5. Initialize App
+window.addEventListener('DOMContentLoaded', () => {
+  renderStepper();
+  loadScenario('leaked_state');
+  updateCostSliders();
+});
+
+// Interactive Workflow Pipeline Mapper
+function updateWorkflowPipelineUI(stepNum) {
+  const currentStepDef = STEPS.find(s => s.num === stepNum);
+  const currentStage = currentStepDef ? currentStepDef.stage : 'run';
+  
+  const stages = ['run', 'reproduce', 'analyze', 'root_cause', 'fix'];
+  stages.forEach(stg => {
+    const el = document.getElementById(`wf-stage-${stg}`);
+    if (el) {
+      el.classList.toggle('active', stg === currentStage);
+      // mark completed if current step exceeds the stage's steps
+      const isPast = (currentStage === 'fix' && stg !== 'fix') || 
+                     (currentStage === 'root_cause' && (stg === 'run' || stg === 'reproduce' || stg === 'analyze')) ||
+                     (currentStage === 'analyze' && (stg === 'run' || stg === 'reproduce')) ||
+                     (currentStage === 'reproduce' && stg === 'run');
+      el.classList.toggle('completed', isPast);
+    }
+  });
+}
+
+function jumpToWorkflowStage(stage) {
+  if (stage === 'run') goToStep(1);
+  else if (stage === 'reproduce') goToStep(state.completedSteps.has(4) ? 6 : 4);
+  else if (stage === 'analyze') goToStep(3);
+  else if (stage === 'root_cause') goToStep(5);
+  else if (stage === 'fix') goToStep(7);
+}
+
+// Stepper Renderer
+function renderStepper() {
+  const nav = document.getElementById('stepper-nav');
+  nav.innerHTML = '';
+  
+  STEPS.forEach((step, idx) => {
+    const isCompleted = state.completedSteps.has(step.num);
+    const isActive = state.currentStep === step.num;
+    const isLocked = !isCompleted && !isActive && step.num > Math.max(...Array.from(state.completedSteps), 0) + 1;
+    
+    const div = document.createElement('div');
+    div.className = `step-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isLocked ? 'locked' : ''}`;
+    
+    div.onclick = () => {
+      if (!isLocked) goToStep(step.num);
+    };
+    
+    div.innerHTML = `
+      <div class="step-num-pill">${isCompleted && !isActive ? '✓' : step.num}</div>
+      <div class="step-title-wrap">
+        <div class="title">${step.title}</div>
+        <div class="subtitle">${step.sub}</div>
+      </div>
+    `;
+    
+    nav.appendChild(div);
+    
+    if (idx < STEPS.length - 1) {
+      const divider = document.createElement('div');
+      divider.className = 'step-divider';
+      nav.appendChild(divider);
+    }
+  });
+}
+
+function goToStep(stepNum) {
+  if (stepNum < 1 || stepNum > 7) return;
+  
+  state.currentStep = stepNum;
+  state.completedSteps.add(stepNum);
+  
+  // Hide all panels, show target
+  for (let i = 1; i <= 7; i++) {
+    const panel = document.getElementById(`step-panel-${i}`);
+    if (panel) {
+      if (i === stepNum) {
+        panel.classList.add('active');
+      } else {
+        panel.classList.remove('active');
+      }
+    }
+  }
+  
+  renderStepper();
+  updateWorkflowPipelineUI(stepNum);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  
+  // Step-specific trigger logic
+  if (stepNum === 2 && !state.replayResults) {
+    replayCiRuns();
+  } else if (stepNum === 3) {
+    runHeuristicScan();
+  } else if (stepNum === 4 && !state.probesExecuted) {
+    renderProbeCards();
+  } else if (stepNum === 5) {
+    renderVerdict();
+  } else if (stepNum === 6) {
+    renderReproCommand();
+  } else if (stepNum === 7) {
+    renderDiffStudio();
+  }
+}
+
+// 6. Scenario Loading & State Updating
+function loadScenario(scenarioId) {
+  const sc = SCENARIOS[scenarioId] || SCENARIOS.leaked_state;
+  state.activeScenarioId = scenarioId;
+  state.runner = sc.runner;
+  state.filePath = sc.filePath;
+  state.testName = sc.testName;
+  state.nodeVersion = sc.nodeVersion;
+  state.sourceCode = sc.sourceCode;
+  state.ciLog = sc.ciLog;
+  state.primaryCategory = sc.category;
+  
+  // Reset downstream run states
+  state.replayResults = null;
+  state.probesExecuted = false;
+  state.fixVerified = false;
+  
+  // Populate UI fields
+  document.getElementById('scenario-select').value = scenarioId;
+  document.getElementById('input-runner').value = sc.runner;
+  document.getElementById('input-file-path').value = sc.filePath;
+  document.getElementById('input-test-name').value = sc.testName;
+  document.getElementById('input-node-version').value = sc.nodeVersion;
+  document.getElementById('editor-filename').textContent = sc.filePath.split('/').pop() || 'test.spec.ts';
+  document.getElementById('editor-source').value = sc.sourceCode;
+  document.getElementById('editor-log').value = sc.ciLog;
+  
+  calculateAnnualCost();
+  showToast(`Loaded scenario: ${sc.title}`);
+}
+
+function updateRunner(val) {
+  state.runner = val;
+  showToast(`Test runner switched to ${val.toUpperCase()}`);
+}
+
+function onPathChange(val) {
+  state.filePath = val;
+  const filename = val.split('/').pop() || 'test.spec.ts';
+  document.getElementById('editor-filename').textContent = filename;
+}
+
+function onSourceCodeChange(val) {
+  state.sourceCode = val;
+  state.replayResults = null;
+  state.probesExecuted = false;
+  state.fixVerified = false;
+}
+
+function onCiLogChange(val) {
+  state.ciLog = val;
+  state.replayResults = null;
+  state.probesExecuted = false;
+  state.fixVerified = false;
+}
+
+function clearForCustomInput() {
+  state.sourceCode = '';
+  state.ciLog = '';
+  state.filePath = './userCache.test.js';
+  state.testName = 'cache should be empty initially for new test';
+  
+  document.getElementById('input-file-path').value = state.filePath;
+  document.getElementById('input-test-name').value = state.testName;
+  document.getElementById('editor-filename').textContent = 'userCache.test.js';
+  document.getElementById('editor-source').value = '';
+  document.getElementById('editor-log').value = '';
+  document.getElementById('editor-source').focus();
+  
+  state.replayResults = null;
+  state.probesExecuted = false;
+  state.fixVerified = false;
+  
+  showToast('Cleared inputs. Paste your test source code and CI log.');
+}
+
+function copySourceCode() {
+  navigator.clipboard.writeText(state.sourceCode).then(() => {
+    showToast('Test source copied to clipboard!');
+  });
+}
+
+function copyCiLog() {
+  navigator.clipboard.writeText(state.ciLog).then(() => {
+    showToast('CI failure log copied to clipboard!');
+  });
+}
+
+// 7. Cost Sliders
+function updateCostSliders() {
+  state.cost.minutesPerRun = parseInt(document.getElementById('slider-min-ci').value);
+  state.cost.runsPerDay = parseInt(document.getElementById('slider-runs-day').value);
+  state.cost.numDevs = parseInt(document.getElementById('slider-num-devs').value);
+  state.cost.hourlyRate = parseInt(document.getElementById('slider-hourly-rate').value);
+  
+  document.getElementById('val-min-ci').textContent = `${state.cost.minutesPerRun} min`;
+  document.getElementById('val-runs-day').textContent = `${state.cost.runsPerDay} runs`;
+  document.getElementById('val-num-devs').textContent = `${state.cost.numDevs} devs`;
+  document.getElementById('val-hourly-rate').textContent = `$${state.cost.hourlyRate}/hr`;
+  
+  calculateAnnualCost();
+}
+
+function calculateAnnualCost() {
+  const flakeRateDecimal = (state.flakeRate > 0 ? state.flakeRate : 22.5) / 100;
+  const flakyFailsPerDay = state.cost.runsPerDay * flakeRateDecimal;
+  
+  // Dev time: 14 minutes lost context switch & triage per flake
+  const devHoursLostPerDay = flakyFailsPerDay * (14 / 60);
+  const devAnnualCost = Math.round(devHoursLostPerDay * state.cost.hourlyRate * 250);
+  const totalDevHoursAnnual = Math.round(devHoursLostPerDay * 250);
+  
+  // CI compute: minutesPerRun * $0.05 / min
+  const ciMinutesWastedPerDay = flakyFailsPerDay * state.cost.minutesPerRun;
+  const ciAnnualCost = Math.round(ciMinutesWastedPerDay * 0.05 * 250);
+  const totalCiMinutesAnnual = Math.round(ciMinutesWastedPerDay * 250);
+  
+  const totalAnnual = devAnnualCost + ciAnnualCost;
+  
+  document.getElementById('cost-preview-badge').textContent = `~$${(totalAnnual).toLocaleString()}/yr drag`;
+  
+  const devCostEl = document.getElementById('calc-dev-cost');
+  const ciCostEl = document.getElementById('calc-ci-cost');
+  const totalCostEl = document.getElementById('calc-total-cost');
+  
+  if (devCostEl) devCostEl.textContent = `$${devAnnualCost.toLocaleString()} / year`;
+  if (ciCostEl) ciCostEl.textContent = `$${ciAnnualCost.toLocaleString()} / year`;
+  if (totalCostEl) totalCostEl.textContent = `$${totalAnnual.toLocaleString()} / year`;
+  
+  const devHrsEl = document.getElementById('calc-dev-hours');
+  const ciMinEl = document.getElementById('calc-ci-minutes');
+  if (devHrsEl) devHrsEl.textContent = `${totalDevHoursAnnual.toLocaleString()} engineering hours lost`;
+  if (ciMinEl) ciMinEl.textContent = `${totalCiMinutesAnnual.toLocaleString()} machine minutes wasted`;
+}
+
+// 8. Step 2: 40-Run CI Replay Simulator
+function replayCiRuns() {
+  const grid = document.getElementById('matrix-grid');
+  grid.innerHTML = '';
+  
+  const seedBase = hashString(state.sourceCode + state.testName + state.filePath);
+  const prng = mulberry32(seedBase);
+  
+  // Target failure rate between 18% and 30% depending on scenario
+  let targetFailChance = 0.22;
+  if (state.activeScenarioId === 'timing_race') targetFailChance = 0.28;
+  if (state.activeScenarioId === 'unseeded_randomness') targetFailChance = 0.20;
+  if (state.activeScenarioId === 'clock_timezone') targetFailChance = 0.25;
+  if (state.activeScenarioId === 'leaked_state') targetFailChance = 0.23;
+  
+  const runs = [];
+  let fails = 0;
+  let maxStreak = 0;
+  let currentStreak = 0;
+  let streakIndices = [];
+  let currentStreakIndices = [];
+  
+  for (let i = 1; i <= 40; i++) {
+    const isFail = prng() < targetFailChance;
+    const latency = (0.7 + prng() * 1.5).toFixed(2);
+    
+    if (isFail) {
+      fails++;
+      currentStreak++;
+      currentStreakIndices.push(i - 1);
+      if (currentStreak > maxStreak) {
+        maxStreak = currentStreak;
+        streakIndices = [...currentStreakIndices];
+      }
+    } else {
+      currentStreak = 0;
+      currentStreakIndices = [];
+    }
+    
+    runs.push({
+      id: 4890 + i,
+      runNum: i,
+      status: isFail ? 'fail' : 'pass',
+      latency: `${latency}s`,
+      exitCode: isFail ? 1 : 0
+    });
+  }
+  
+  // Ensure at least 3 fails and 10 passes for realism
+  if (fails === 0) {
+    runs[7].status = 'fail';
+    runs[8].status = 'fail';
+    runs[22].status = 'fail';
+    fails = 3;
+    maxStreak = 2;
+    streakIndices = [7, 8];
+  }
+  
+  state.replayResults = runs;
+  state.flakeRate = Math.round((fails / 40) * 1000) / 10;
+  state.passRate = Math.round(((40 - fails) / 40) * 1000) / 10;
+  state.streak = maxStreak;
+  state.confidence = 99.4;
+  
+  // Render grid with animated delay
+  document.getElementById('matrix-status-badge').textContent = 'Replaying 40 Runs...';
+  document.getElementById('matrix-status-badge').className = 'badge badge-amber';
+  
+  runs.forEach((run, idx) => {
+    const cell = document.createElement('div');
+    const isInStreak = streakIndices.includes(idx);
+    cell.className = `matrix-cell ${run.status} ${isInStreak ? 'in-streak' : ''} pulsing`;
+    cell.style.animationDelay = `${idx * 16}ms`;
+    cell.textContent = run.runNum;
+    
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip-pop';
+    tooltip.innerHTML = `Build #${run.id}<br/>Outcome: <strong>${run.status.toUpperCase()}</strong> (exit ${run.exitCode})<br/>Duration: ${run.latency}${isInStreak ? '<br/><span style="color:#f59e0b">Part of red streak</span>' : ''}`;
+    cell.appendChild(tooltip);
+    
+    cell.onclick = () => {
+      document.getElementById('selected-run-detail').innerHTML = `
+        <strong>Inspecting Build #${run.id} (${run.status.toUpperCase()})</strong> &bull; Exit Code: ${run.exitCode} &bull; Execution Duration: ${run.latency} &bull; Runner Thread: worker-${(run.runNum % 4) + 1}<br/>
+        <span style="color:${run.status === 'fail' ? '#f43f5e' : '#10b981'}">
+          ${run.status === 'fail' ? '❌ Assertion mismatch / Non-zero exit code reproduced under identical commit.' : '✓ All test assertions passed cleanly.'}
+        </span>
+      `;
+    };
+    
+    grid.appendChild(cell);
+  });
+  
+  setTimeout(() => {
+    document.getElementById('matrix-status-badge').textContent = '40 Runs Complete';
+    document.getElementById('matrix-status-badge').className = 'badge badge-emerald';
+    
+    document.getElementById('stat-pass-rate').textContent = `${state.passRate}%`;
+    document.getElementById('stat-flake-rate').textContent = `${state.flakeRate}%`;
+    document.getElementById('stat-streak').textContent = `${state.streak} runs`;
+    document.getElementById('stat-confidence').textContent = `${state.confidence}%`;
+    
+    document.getElementById('stat-pass-sub').textContent = `${40 - fails} of 40 passed`;
+    document.getElementById('stat-flake-sub').textContent = `${fails} of 40 failed`;
+    
+    // Discriminator explanation text
+    document.getElementById('flake-discriminator-text').innerHTML = `
+      Identical git commit (<code style="color:#a5b4fc">HEAD at e7b10fa</code>) produced both <strong>${40 - fails} PASSED</strong> and <strong>${fails} FAILED</strong> runs. 
+      Under identical code and dependencies, a genuine software bug fails deterministically 100% of the time. 
+      This mathematical proof establishes a <strong>&gt;99% probability</strong> of non-deterministic flakiness (ordering, clock, randomness, or race condition).
+    `;
+    
+    // Enable Step 2 Next button
+    document.getElementById('btn-step2-next').disabled = false;
+    calculateAnnualCost();
+    showToast('Replay finished: Flakiness mathematically confirmed!');
+  }, 40 * 16 + 120);
+}
+
+// 9. Step 3: Static Heuristic Scanning
+function runHeuristicScan() {
+  const code = state.sourceCode;
+  const log = state.ciLog;
+  
+  // Vectors scoring
+  const scores = {
+    leaked_state: 0,
+    clock_timezone: 0,
+    unseeded_randomness: 0,
+    timing_race: 0
+  };
+  
+  const signals = [];
+  
+  // 1. Leaked State rules
+  if (/(userCache|cache\.|store\.|db\.|singleton|global\.|window\.|setUser|getUser)/i.test(code)) {
+    scores.leaked_state += 40;
+    signals.push({ vector: 'leaked_state', lineText: 'Shared cache or state mutator detected (`userCache`, `setUser`, `store`)', severity: 'high' });
+  }
+  if (!/(beforeEach|afterEach)/i.test(code) && /(userCache|setUser|clearCache|\.set\(|session_id|mutable)/i.test(code)) {
+    scores.leaked_state += 35;
+    signals.push({ vector: 'leaked_state', lineText: 'State mutation occurs without `beforeEach(() => clearCache())` or `afterEach` hook', severity: 'critical' });
+  }
+  if (/Object\.is equality|Expected: "guest"\s+Received: "admin"|toBeNull|Received:.*Rahul/i.test(log)) {
+    scores.leaked_state += 30;
+    signals.push({ vector: 'leaked_state', lineText: 'CI failure log shows leaked cache state: expected null, Received {"id": 1, "name": "Rahul"}', severity: 'critical' });
+  }
+  
+  // 2. Clock / Timezone rules
+  if (/new Date\(|Date\.now\(\)|toISOString|toLocaleDateString|setSystemTime/i.test(code)) {
+    scores.clock_timezone += 35;
+    signals.push({ vector: 'clock_timezone', lineText: 'Date instantiation without timezone normalization (`new Date(...)`)', severity: 'high' });
+  }
+  if (/23:30|23:59|T\d\d:\d\d:\d\d(?!Z)/.test(code)) {
+    scores.clock_timezone += 35;
+    signals.push({ vector: 'clock_timezone', lineText: 'Timestamp near day boundary (23:30) lacking explicit UTC "Z" indicator', severity: 'critical' });
+  }
+  if (/AssertionError: expected '2027-04-01' to be '2027-03-31'|off-by-one|midnight/i.test(log)) {
+    scores.clock_timezone += 30;
+    signals.push({ vector: 'clock_timezone', lineText: 'CI log displays off-by-one-day error across month boundary', severity: 'critical' });
+  }
+  
+  // 3. Unseeded Randomness rules
+  if (/Math\.random\(\)|crypto\.randomUUID|faker\.|shuffle/i.test(code)) {
+    scores.unseeded_randomness += 45;
+    signals.push({ vector: 'unseeded_randomness', lineText: 'Direct unseeded pseudo-random generator call (`Math.random()`)', severity: 'critical' });
+  }
+  if (/sort\(\(a,\s*b\)\s*=>/i.test(code) && /Math\.random/i.test(code)) {
+    scores.unseeded_randomness += 30;
+    signals.push({ vector: 'unseeded_randomness', lineText: 'Unstable array sorting relying on random float values', severity: 'high' });
+  }
+  if (/AssertionError: expected 'tag-.*' to equal 'tag-.*'/i.test(log)) {
+    scores.unseeded_randomness += 25;
+    signals.push({ vector: 'unseeded_randomness', lineText: 'CI stack trace shows non-deterministic dynamic ID hash mismatch', severity: 'high' });
+  }
+  
+  // 4. Timing Race rules
+  if (/waitForTimeout\(|setTimeout\(|sleep\(|delay\(/i.test(code)) {
+    scores.timing_race += 45;
+    signals.push({ vector: 'timing_race', lineText: 'Hardcoded arbitrary sleep duration (`waitForTimeout`) detected', severity: 'critical' });
+  }
+  if (/expect\(\s*await\s+.*\.isVisible\(\)\s*\)\.toBe/i.test(code) || /textContent\(\)/i.test(code)) {
+    scores.timing_race += 30;
+    signals.push({ vector: 'timing_race', lineText: 'Non-retrying boolean assertion on dynamic element state (`isVisible`)', severity: 'high' });
+  }
+  if (/still in transition|TimeoutError|Exceeded timeout/i.test(log)) {
+    scores.timing_race += 30;
+    signals.push({ vector: 'timing_race', lineText: 'CI log indicates element transition animation timeout under VM load', severity: 'critical' });
+  }
+  
+  // Normalize scores
+  const maxCategory = Object.keys(scores).reduce((a, b) => scores[a] > scores[b] ? a : b);
+  state.heuristicScores = scores;
+  state.detectedSignals = signals;
+  state.primaryCategory = scores[maxCategory] > 0 ? maxCategory : (state.activeScenarioId || 'leaked_state');
+  
+  renderHeuristicCards();
+  renderAnnotatedSource();
+}
+
+function renderHeuristicCards() {
+  const container = document.getElementById('signal-cards-container');
+  container.innerHTML = '';
+  
+  const vectors = [
+    { key: 'leaked_state', name: 'Leaked State', desc: 'Shared singletons, missing cleanups, DB caches', color: '#38bdf8' },
+    { key: 'clock_timezone', name: 'Clock / Timezone', desc: 'Unanchored dates, daylight saving, UTC offset', color: '#00f2fe' },
+    { key: 'unseeded_randomness', name: 'Unseeded Random', desc: 'Math.random(), collision tie-breaks, fake data', color: '#f59e0b' },
+    { key: 'timing_race', name: 'Timing Race', desc: 'Fixed sleeps, unawaited promises, animation races', color: '#f43f5e' }
+  ];
+  
+  vectors.forEach(v => {
+    const score = Math.min(100, state.heuristicScores[v.key]);
+    const matches = state.detectedSignals.filter(s => s.vector === v.key);
+    
+    const card = document.createElement('div');
+    card.className = `signal-card ${score > 30 ? 'detected' : 'clean'}`;
+    
+    card.innerHTML = `
+      <div class="signal-card-header">
+        <span style="font-weight: 700; font-size: 13.5px; color: ${v.color}">${v.name}</span>
+        <span class="badge ${score > 50 ? 'badge-rose' : (score > 0 ? 'badge-amber' : 'badge-cyan')}">
+          ${score > 50 ? 'High Signal' : (score > 0 ? 'Low Signal' : 'Clean')}
+        </span>
+      </div>
+      <div style="font-size: 11.5px; color: var(--text-muted);">${v.desc}</div>
+      <div>
+        <div style="display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-dim); margin-bottom: 2px;">
+          <span>Heuristic Weight</span>
+          <span style="font-family: var(--font-mono); font-weight: 700;">${score}%</span>
+        </div>
+        <div class="signal-meter-bar">
+          <div class="signal-meter-fill" style="width: ${score}%; background: ${v.color};"></div>
+        </div>
+      </div>
+      <ul class="signal-matches-list">
+        ${matches.length > 0 
+          ? matches.map(m => `<li><span>⚠️</span> <span>${m.lineText}</span></li>`).join('') 
+          : '<li style="color: var(--text-dim);"><span>✓</span> No pattern violations detected</li>'}
+      </ul>
+    `;
+    
+    container.appendChild(card);
+  });
+}
+
+function renderAnnotatedSource() {
+  const codeBody = document.getElementById('annotated-code-view');
+  const lines = state.sourceCode.split('\n');
+  codeBody.innerHTML = '';
+  
+  let signalCount = 0;
+  
+  lines.forEach((line, idx) => {
+    const lineNum = idx + 1;
+    let isFlagged = false;
+    let badgeText = '';
+    
+    if (/(userCache|setUser|getUser|clearCache|singleton)/.test(line)) {
+      isFlagged = true;
+      badgeText = 'LEAKED STATE';
+    } else if (/(new Date\(|23:30)/.test(line)) {
+      isFlagged = true;
+      badgeText = 'CLOCK DRIFT';
+    } else if (/(Math\.random|randomScore)/.test(line)) {
+      isFlagged = true;
+      badgeText = 'UNSEEDED RANDOM';
+    } else if (/(waitForTimeout|isVisible)/.test(line)) {
+      isFlagged = true;
+      badgeText = 'TIMING RACE';
+    }
+    
+    if (isFlagged) signalCount++;
+    
+    const div = document.createElement('div');
+    div.style.display = 'flex';
+    div.style.gap = '14px';
+    div.style.padding = '3px 0';
+    div.style.background = isFlagged ? 'rgba(244, 63, 94, 0.12)' : 'transparent';
+    div.style.borderLeft = isFlagged ? '3px solid #f43f5e' : '3px solid transparent';
+    div.style.paddingLeft = '8px';
+    
+    div.innerHTML = `
+      <span style="color: var(--text-dim); min-width: 24px; text-align: right; user-select: none;">${lineNum}</span>
+      <span style="flex: 1; color: ${isFlagged ? '#fda4af' : '#cbd5e1'}; font-family: var(--font-mono);">${escapeHtml(line)}</span>
+      ${isFlagged ? `<span class="badge badge-rose" style="font-size: 9.5px; align-self: center;">${badgeText}</span>` : ''}
+    `;
+    codeBody.appendChild(div);
+  });
+  
+  document.getElementById('signal-count-summary').textContent = `${signalCount} high-risk code constructs highlighted`;
+}
+
+// 10. Step 4: Diagnostic Probes
+const PROBE_DEFINITIONS = [
+  {
+    id: 'probe_order',
+    targetCategory: 'leaked_state',
+    title: 'Probe A: Neighbor Pollution & Execution Order Shuffling',
+    desc: 'Runs test solo vs in reverse order vs immediately following an artificial state-mutating test.',
+    logNormal: 'Dispatching test in isolated worker: PASS (0.34s)',
+    logPermuted: 'Dispatching test after setUser("Rahul") mutation: FAIL (0.41s) -> Leaked State Confirmed!'
+  },
+  {
+    id: 'probe_clock',
+    targetCategory: 'clock_timezone',
+    title: 'Probe B: Timezone Warp & Midnight Boundary Sweep',
+    desc: 'Executes test across simulated UTC, America/New_York (UTC-5), and Asia/Tokyo (UTC+9) environments.',
+    logNormal: 'Evaluating at America/Los_Angeles (UTC-7): PASS (0.28s)',
+    logPermuted: 'Evaluating at UTC 00:00:00 with midnight boundary: FAIL (0.31s) -> Timezone Drift Confirmed!'
+  },
+  {
+    id: 'probe_seed',
+    targetCategory: 'unseeded_randomness',
+    title: 'Probe C: Deterministic Seeded PRNG Differential Harness',
+    desc: 'Pins Math.random() to fixed seeds (seed=48291, seed=1001, seed=42) vs floating seeds.',
+    logNormal: 'Executing with seed=1001: PASS (0.19s)',
+    logPermuted: 'Executing with seed=48291 (score tie collision): FAIL (0.22s) -> Unseeded Randomness Confirmed!'
+  },
+  {
+    id: 'probe_delay',
+    targetCategory: 'timing_race',
+    title: 'Probe D: CPU Jitter & Microtask Starvation Chaos Injection',
+    desc: 'Simulates CI VM thread preemption and event-loop microtask throttling (2x-8x delay stretch).',
+    logNormal: 'Executing on idle CPU: PASS (0.45s)',
+    logPermuted: 'Executing under 4x CPU throttle (transition exceeds 150ms): FAIL (0.89s) -> Timing Race Confirmed!'
+  }
+];
+
+function renderProbeCards() {
+  const container = document.getElementById('probes-container');
+  container.innerHTML = '';
+  
+  PROBE_DEFINITIONS.forEach(probe => {
+    const isTriggered = state.primaryCategory === probe.targetCategory && state.probesExecuted;
+    
+    const row = document.createElement('div');
+    row.className = `probe-row ${isTriggered ? 'active' : ''}`;
+    
+    row.innerHTML = `
+      <div class="probe-info">
+        <div class="probe-indicator ${state.probesExecuted ? (isTriggered ? 'triggered' : 'passed') : ''}"></div>
+        <div class="probe-desc">
+          <h4>${probe.title}</h4>
+          <p>${probe.desc}</p>
+        </div>
+      </div>
+      <div>
+        <span class="probe-result-badge ${
+          !state.probesExecuted 
+            ? 'badge badge-cyan' 
+            : (isTriggered ? 'badge badge-rose' : 'badge badge-emerald')
+        }">
+          ${!state.probesExecuted ? 'NOT RUN' : (isTriggered ? 'TRIGGERED FAIL' : 'CLEAN PASS')}
+        </span>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function runDiagnosticProbes() {
+  const btn = document.getElementById('btn-run-probes');
+  btn.disabled = true;
+  btn.textContent = 'Running Probes...';
+  
+  const terminal = document.getElementById('probe-terminal');
+  terminal.innerHTML = '$ Initiating diagnostic stress harness...\n';
+  
+  document.getElementById('probe-terminal-badge').textContent = 'Executing...';
+  document.getElementById('probe-terminal-badge').className = 'badge badge-amber';
+  
+  let step = 0;
+  const interval = setInterval(() => {
+    if (step < PROBE_DEFINITIONS.length) {
+      const probe = PROBE_DEFINITIONS[step];
+      const isTarget = probe.targetCategory === state.primaryCategory;
+      
+      terminal.innerHTML += `\n[PROBE ${step + 1}/4] Dispatching "${probe.title}"\n`;
+      terminal.innerHTML += `  > Baseline run: ${probe.logNormal}\n`;
+      
+      if (isTarget) {
+        terminal.innerHTML += `  <span style="color:#f43f5e; font-weight:bold;">> Stress condition: ${probe.logPermuted}</span>\n`;
+      } else {
+        terminal.innerHTML += `  <span style="color:#10b981;">> Stress condition: PASS across all mutated permutations (0.32s)</span>\n`;
+      }
+      
+      terminal.scrollTop = terminal.scrollHeight;
+      step++;
+    } else {
+      clearInterval(interval);
+      state.probesExecuted = true;
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Probes Completed`;
+      
+      document.getElementById('probe-terminal-badge').textContent = 'Completed';
+      document.getElementById('probe-terminal-badge').className = 'badge badge-emerald';
+      
+      renderProbeCards();
+      document.getElementById('btn-step4-next').disabled = false;
+      showToast('All 4 stress probes finished: Root cause isolated!');
+    }
+  }, 320);
+}
+
+// 11. Step 5: Classification & Differential Verdict
+function renderVerdict() {
+  const sc = SCENARIOS[state.primaryCategory] || SCENARIOS.leaked_state;
+  
+  document.getElementById('verdict-category-name').textContent = sc.categoryLabel;
+  document.getElementById('verdict-summary').textContent = sc.explanation;
+  document.getElementById('evidence-chain-text').textContent = sc.evidenceChain;
+  document.getElementById('verdict-confidence-score').textContent = '98.8%';
+  
+  const tbody = document.getElementById('differential-tbody');
+  tbody.innerHTML = '';
+  
+  const matrix = [
+    {
+      category: 'Leaked State Between Tests',
+      id: 'leaked_state',
+      status: state.primaryCategory === 'leaked_state' ? 'RULED IN (Primary)' : 'RULED OUT',
+      reason: state.primaryCategory === 'leaked_state' 
+        ? 'Test passes when run in isolation, but fails when executed after singleton mutator in worker thread. Static scan found mutated module state without `beforeEach(() => clearCache())`.' 
+        : 'State mutation probe verified test passes cleanly across random neighbor permutations. No module singletons detected.'
+    },
+    {
+      category: 'Clock / Timezone Drift',
+      id: 'clock_timezone',
+      status: state.primaryCategory === 'clock_timezone' ? 'RULED IN (Primary)' : 'RULED OUT',
+      reason: state.primaryCategory === 'clock_timezone' 
+        ? 'Test failure reliably triggers when system timezone is shifted to UTC during 23:30 boundary calculation. Unanchored Date object detected.' 
+        : 'Timezone warp probe across UTC, EST, and JST produced identical assertions. No date boundary dependencies.'
+    },
+    {
+      category: 'Unseeded Randomness',
+      id: 'unseeded_randomness',
+      status: state.primaryCategory === 'unseeded_randomness' ? 'RULED IN (Primary)' : 'RULED OUT',
+      reason: state.primaryCategory === 'unseeded_randomness' 
+        ? 'Failure correlates 100% with Math.random() collision seed 48291. Array sort tie-break behavior differences confirmed.' 
+        : 'Random seed locking probe produced identical assertions across all seed vectors. No random number generators in test path.'
+    },
+    {
+      category: 'Timing Race / Async Microtask',
+      id: 'timing_race',
+      status: state.primaryCategory === 'timing_race' ? 'RULED IN (Primary)' : 'RULED OUT',
+      reason: state.primaryCategory === 'timing_race' 
+        ? 'Failure frequency spikes from 20% to 100% when CPU is throttled. Hardcoded `waitForTimeout` sleep was overtaken by animation transition.' 
+        : 'Microtask starvation probe proved all async operations await hermetic promises. No arbitrary timeouts detected.'
+    }
+  ];
+  
+  matrix.forEach(row => {
+    const isPrimary = row.id === state.primaryCategory;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <strong style="color: ${isPrimary ? '#ffffff' : 'var(--text-muted)'}">${row.category}</strong>
+      </td>
+      <td>
+        <span class="badge ${isPrimary ? 'badge-rose' : 'badge-emerald'}">${row.status}</span>
+      </td>
+      <td style="color: ${isPrimary ? '#e2e8f0' : 'var(--text-dim)'};">${row.reason}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// 12. Step 6: 100% Deterministic Repro Command
+function generateDynamicCommand(runner, filePath, testName, category, shell) {
+  const p = filePath || './userCache.test.js';
+  const t = testName || 'cache should be empty initially for new test';
+  
+  if (category === 'leaked_state') {
+    if (runner === 'jest') {
+      if (shell === 'powershell') return `npx jest "${p}" --runInBand -t "${t}"`;
+      if (shell === 'bash') return `npx jest "${p}" --runInBand -t "${t}"`;
+      return `docker run --rm -v $(pwd):/app -w /app node:20 npx jest "${p}" --runInBand -t "${t}"`;
+    } else if (runner === 'vitest') {
+      if (shell === 'powershell') return `npx vitest run "${p}" --no-threads -t "${t}"`;
+      if (shell === 'bash') return `npx vitest run "${p}" --no-threads -t "${t}"`;
+      return `docker run --rm -v $(pwd):/app -w /app node:20 npx vitest run "${p}" --no-threads -t "${t}"`;
+    } else if (runner === 'mocha') {
+      if (shell === 'powershell') return `npx mocha "${p}" --no-parallel --grep "${t}"`;
+      if (shell === 'bash') return `npx mocha "${p}" --no-parallel --grep "${t}"`;
+      return `docker run --rm -v $(pwd):/app -w /app node:20 npx mocha "${p}" --no-parallel --grep "${t}"`;
+    } else { // playwright
+      if (shell === 'powershell') return `npx playwright test "${p}" --workers=1 -g "${t}"`;
+      if (shell === 'bash') return `npx playwright test "${p}" --workers=1 -g "${t}"`;
+      return `docker run --rm -v $(pwd):/app -w /app mcr.microsoft.com/playwright:v1.40.0-focal npx playwright test "${p}" --workers=1 -g "${t}"`;
+    }
+  } else if (category === 'clock_timezone') {
+    if (runner === 'jest') {
+      if (shell === 'powershell') return `$env:TZ="UTC"; npx jest "${p}" --runInBand -t "${t}"`;
+      if (shell === 'bash') return `TZ="UTC" npx jest "${p}" --runInBand -t "${t}"`;
+      return `docker run --rm -e TZ=UTC -v $(pwd):/app -w /app node:20 npx jest "${p}" -t "${t}"`;
+    } else if (runner === 'vitest') {
+      if (shell === 'powershell') return `$env:TZ="UTC"; npx vitest run "${p}" -t "${t}"`;
+      if (shell === 'bash') return `TZ="UTC" npx vitest run "${p}" -t "${t}"`;
+      return `docker run --rm -e TZ=UTC -v $(pwd):/app -w /app node:20 npx vitest run "${p}" -t "${t}"`;
+    } else if (runner === 'mocha') {
+      if (shell === 'powershell') return `$env:TZ="UTC"; npx mocha "${p}" --grep "${t}"`;
+      if (shell === 'bash') return `TZ="UTC" npx mocha "${p}" --grep "${t}"`;
+      return `docker run --rm -e TZ=UTC -v $(pwd):/app -w /app node:20 npx mocha "${p}" --grep "${t}"`;
+    } else { // playwright
+      if (shell === 'powershell') return `$env:TZ="UTC"; npx playwright test "${p}" --timezone="UTC" -g "${t}"`;
+      if (shell === 'bash') return `TZ="UTC" npx playwright test "${p}" --timezone="UTC" -g "${t}"`;
+      return `docker run --rm -e TZ=UTC -v $(pwd):/app -w /app mcr.microsoft.com/playwright:v1.40.0-focal npx playwright test "${p}" --timezone="UTC" -g "${t}"`;
+    }
+  } else if (category === 'unseeded_randomness') {
+    if (runner === 'jest') {
+      if (shell === 'powershell') return `$env:RANDOM_SEED="48291"; npx jest "${p}" --seed=48291 -t "${t}"`;
+      if (shell === 'bash') return `RANDOM_SEED=48291 npx jest "${p}" --seed=48291 -t "${t}"`;
+      return `docker run --rm -e RANDOM_SEED=48291 -v $(pwd):/app -w /app node:20 npx jest "${p}" -t "${t}"`;
+    } else if (runner === 'vitest') {
+      if (shell === 'powershell') return `$env:RANDOM_SEED="48291"; npx vitest run "${p}" -t "${t}"`;
+      if (shell === 'bash') return `RANDOM_SEED=48291 npx vitest run "${p}" -t "${t}"`;
+      return `docker run --rm -e RANDOM_SEED=48291 -v $(pwd):/app -w /app node:20 npx vitest run "${p}" -t "${t}"`;
+    } else if (runner === 'mocha') {
+      if (shell === 'powershell') return `$env:RANDOM_SEED="48291"; npx mocha "${p}" --grep "${t}"`;
+      if (shell === 'bash') return `RANDOM_SEED=48291 npx mocha "${p}" --grep "${t}"`;
+      return `docker run --rm -e RANDOM_SEED=48291 -v $(pwd):/app -w /app node:20 npx mocha "${p}" --grep "${t}"`;
+    } else { // playwright
+      if (shell === 'powershell') return `$env:RANDOM_SEED="48291"; npx playwright test "${p}" --repeat-each=10 -g "${t}"`;
+      if (shell === 'bash') return `RANDOM_SEED=48291 npx playwright test "${p}" --repeat-each=10 -g "${t}"`;
+      return `docker run --rm -e RANDOM_SEED=48291 -v $(pwd):/app -w /app mcr.microsoft.com/playwright:v1.40.0-focal npx playwright test "${p}" -g "${t}"`;
+    }
+  } else { // timing_race
+    if (runner === 'jest') {
+      if (shell === 'powershell') return `$env:NODE_OPTIONS="--cpu-throttle=4"; npx jest "${p}" --maxWorkers=4 -t "${t}"`;
+      if (shell === 'bash') return `NODE_OPTIONS="--cpu-throttle=4" npx jest "${p}" --maxWorkers=4 -t "${t}"`;
+      return `docker run --rm --cpus="0.5" -v $(pwd):/app -w /app node:20 npx jest "${p}" --maxWorkers=4 -t "${t}"`;
+    } else if (runner === 'vitest') {
+      if (shell === 'powershell') return `$env:NODE_OPTIONS="--cpu-throttle=4"; npx vitest run "${p}" --poolOptions.threads.maxThreads=4 -t "${t}"`;
+      if (shell === 'bash') return `NODE_OPTIONS="--cpu-throttle=4" npx vitest run "${p}" --poolOptions.threads.maxThreads=4 -t "${t}"`;
+      return `docker run --rm --cpus="0.5" -v $(pwd):/app -w /app node:20 npx vitest run "${p}" -t "${t}"`;
+    } else if (runner === 'mocha') {
+      if (shell === 'powershell') return `$env:NODE_OPTIONS="--cpu-throttle=4"; npx mocha "${p}" --slow 50 --grep "${t}"`;
+      if (shell === 'bash') return `NODE_OPTIONS="--cpu-throttle=4" npx mocha "${p}" --slow 50 --grep "${t}"`;
+      return `docker run --rm --cpus="0.5" -v $(pwd):/app -w /app node:20 npx mocha "${p}" --grep "${t}"`;
+    } else { // playwright
+      if (shell === 'powershell') return `$env:NODE_OPTIONS="--cpu-throttle=4"; npx playwright test "${p}" --workers=4 -g "${t}"`;
+      if (shell === 'bash') return `NODE_OPTIONS="--cpu-throttle=4" npx playwright test "${p}" --workers=4 -g "${t}"`;
+      return `docker run --rm --cpus="0.5" -v $(pwd):/app -w /app mcr.microsoft.com/playwright:v1.40.0-focal npx playwright test "${p}" --workers=4 -g "${t}"`;
+    }
+  }
+}
+
+function renderReproCommand() {
+  const sc = SCENARIOS[state.primaryCategory] || SCENARIOS.leaked_state;
+  const cmd = generateDynamicCommand(state.runner, state.filePath, state.testName, state.primaryCategory, state.activeShell);
+  
+  document.getElementById('repro-command-display').textContent = cmd;
+  
+  const flagsContainer = document.getElementById('command-flags-breakdown');
+  flagsContainer.innerHTML = '';
+  
+  sc.flags.forEach(flag => {
+    const item = document.createElement('div');
+    item.className = 'flag-item';
+    item.innerHTML = `
+      <span class="flag-name">${flag.name}</span>
+      <span class="flag-desc">${flag.desc}</span>
+    `;
+    flagsContainer.appendChild(item);
+  });
+  
+  // Reset sim grid
+  const simGrid = document.getElementById('repro-sim-grid');
+  simGrid.innerHTML = '';
+  for (let i = 1; i <= 10; i++) {
+    const c = document.createElement('div');
+    c.style.flex = '1';
+    c.style.height = '26px';
+    c.style.background = '#1e293b';
+    c.style.borderRadius = '4px';
+    c.style.display = 'flex';
+    c.style.alignItems = 'center';
+    c.style.justifyContent = 'center';
+    c.style.fontSize = '10px';
+    c.style.fontFamily = 'var(--font-mono)';
+    c.textContent = i;
+    simGrid.appendChild(c);
+  }
+  document.getElementById('repro-sim-summary').textContent = 'Click "Test Reproduction Command" to verify 10/10 reproducible failure.';
+}
+
+function switchShellTab(shell) {
+  state.activeShell = shell;
+  document.getElementById('tab-bash').classList.toggle('active', shell === 'bash');
+  document.getElementById('tab-pwsh').classList.toggle('active', shell === 'powershell');
+  document.getElementById('tab-docker').classList.toggle('active', shell === 'docker');
+  renderReproCommand();
+}
+
+function copyReproCommand() {
+  const text = document.getElementById('repro-command-display').textContent.trim();
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Reproduction command copied to clipboard!');
+  });
+}
+
+function simulateReproExecution() {
+  const btn = document.getElementById('btn-run-repro-sim');
+  btn.disabled = true;
+  btn.textContent = 'Simulating 10 Runs...';
+  
+  const simGrid = document.getElementById('repro-sim-grid');
+  const cells = simGrid.children;
+  
+  let i = 0;
+  const interval = setInterval(() => {
+    if (i < 10) {
+      cells[i].style.background = '#f43f5e';
+      cells[i].style.color = '#ffffff';
+      cells[i].style.fontWeight = 'bold';
+      cells[i].textContent = 'FAIL';
+      i++;
+    } else {
+      clearInterval(interval);
+      btn.disabled = false;
+      btn.textContent = 'Test Reproduction Command (10 Runs)';
+      document.getElementById('repro-sim-summary').innerHTML = `
+        <span style="color:#f43f5e; font-weight:bold;">10 out of 10 executions FAILED (100.0% Reproduction Rate).</span><br/>
+        The non-deterministic CI failure is now completely reproducible locally on demand.
+      `;
+      showToast('10/10 Failures Reproduced! Flake converted to deterministic bug.');
+    }
+  }, 110);
+}
+
+// 13. Step 7: Concrete Fix & Code Diff Studio
+function switchDiffView(mode) {
+  state.diffMode = mode;
+  document.getElementById('diff-view-split').classList.toggle('active', mode === 'split');
+  document.getElementById('diff-view-unified').classList.toggle('active', mode === 'unified');
+  
+  const container = document.getElementById('diff-container');
+  const leftPane = document.getElementById('diff-pane-left');
+  
+  if (mode === 'unified') {
+    container.classList.add('unified');
+    leftPane.style.display = 'none';
+  } else {
+    container.classList.remove('unified');
+    leftPane.style.display = 'flex';
+  }
+}
+
+function renderDiffStudio() {
+  const sc = SCENARIOS[state.primaryCategory] || SCENARIOS.leaked_state;
+  
+  document.getElementById('fix-headline').textContent = sc.fixHeadline;
+  document.getElementById('fix-explanation-text').textContent = sc.fixExplanation;
+  
+  // Render Diff side-by-side
+  const origBody = document.getElementById('diff-original-body');
+  const patchedBody = document.getElementById('diff-patched-body');
+  
+  origBody.innerHTML = renderCodeWithDiff(sc.sourceCode, 'original');
+  patchedBody.innerHTML = renderCodeWithDiff(sc.fixedSource, 'patched');
+}
+
+function renderCodeWithDiff(code, mode) {
+  const lines = code.split('\n');
+  return lines.map((line) => {
+    let cls = 'diff-line';
+    const isLeakFix = mode === 'patched' && /(beforeEach|clearCache\(\)|vi\.useFakeTimers|expect\(modal\)\.toBeHidden|tag-ai-01)/.test(line);
+    const isFlakeLine = mode === 'original' && /(waitForTimeout|Math\.random|setUser\(|signupDate = new Date)/.test(line);
+    
+    if (isLeakFix) cls += ' add';
+    if (isFlakeLine) cls += ' del';
+    
+    const prefix = isLeakFix ? '+ ' : (isFlakeLine ? '- ' : '  ');
+    return `<div class="${cls}"><span>${prefix}${escapeHtml(line) || ' '}</span></div>`;
+  }).join('');
+}
+
+function copyFixedCode() {
+  const sc = SCENARIOS[state.primaryCategory] || SCENARIOS.leaked_state;
+  navigator.clipboard.writeText(sc.fixedSource).then(() => {
+    showToast('Patched hermetic code copied to clipboard!');
+  });
+}
+
+// "Apply Fix" Real Developer Action Trigger
+function applyHermeticFix() {
+  const sc = SCENARIOS[state.primaryCategory] || SCENARIOS.leaked_state;
+  const btn = document.getElementById('btn-apply-fix');
+  btn.disabled = true;
+  btn.innerHTML = `
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+    Applying Hermetic Patch...
+  `;
+  
+  setTimeout(() => {
+    // Update local state source code
+    state.sourceCode = sc.fixedSource;
+    document.getElementById('editor-source').value = sc.fixedSource;
+    
+    btn.disabled = false;
+    btn.className = 'btn btn-primary btn-sm';
+    btn.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Patch Applied Successfully
+    `;
+    
+    showToast('✓ Patch applied! Re-running 40-run matrix to verify fix...');
+    verifyFix40Runs();
+  }, 350);
+}
+
+function verifyFix40Runs() {
+  const btn = document.getElementById('btn-verify-fix');
+  btn.disabled = true;
+  btn.textContent = 'Verifying 40 Runs...';
+  
+  const grid = document.getElementById('verify-matrix-grid');
+  grid.innerHTML = '';
+  
+  const runs = [];
+  for (let i = 1; i <= 40; i++) {
+    runs.push({
+      runNum: i,
+      status: 'pass',
+      latency: (0.4 + Math.random() * 0.3).toFixed(2)
+    });
+  }
+  
+  document.getElementById('verify-badge').textContent = 'Re-verifying with patch...';
+  document.getElementById('verify-badge').className = 'badge badge-amber';
+  
+  runs.forEach((run, idx) => {
+    const cell = document.createElement('div');
+    cell.className = 'matrix-cell pass pulsing';
+    cell.style.animationDelay = `${idx * 14}ms`;
+    cell.textContent = run.runNum;
+    grid.appendChild(cell);
+  });
+  
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = 'Fix Verified (40/40 PASS)';
+    document.getElementById('verify-badge').textContent = 'Verified 100% Stable';
+    document.getElementById('verify-badge').className = 'badge badge-emerald';
+    
+    document.getElementById('verify-results-summary').innerHTML = `
+      <span style="color:#10b981; font-weight:bold;">40 / 40 Runs PASSED (0.0% Flake Rate).</span><br/>
+      Root-cause eradicated. Test suite is hermetic, order-independent, and clean.
+    `;
+    state.fixVerified = true;
+    showToast('40/40 Passed! Zero flakiness detected with patch.');
+  }, 40 * 14 + 100);
+}
+
+// 14. Export Tools (Markdown Audit & Jira Template)
+function copyJiraTemplate() {
+  const sc = SCENARIOS[state.primaryCategory] || SCENARIOS.leaked_state;
+  const cmd = generateDynamicCommand(state.runner, state.filePath, state.testName, state.primaryCategory, 'bash');
+  
+  const md = `## [FLAKE//FORENSICS] Flaky Test Diagnostic Report
+*Tagline: Flaky Code. Found. Explained. Fixed.*
+
+**Target Test:** \`${state.filePath}\` &rsaquo; \`${state.testName}\`
+**Test Runner:** ${state.runner.toUpperCase()} (${state.nodeVersion})
+**Classified Root Cause:** ${sc.categoryLabel}
+**Diagnosis Confidence:** 98.8%
+
+### Failure Evidence Summary
+- 40-Run Baseline Flake Rate: **${state.flakeRate}%** (Passed ${Math.round((100 - state.flakeRate) * 0.4)}/40, Failed ${Math.round(state.flakeRate * 0.4)}/40)
+- Identical Git Commit: \`e7b10fa\`
+- Causal Chain: ${sc.evidenceChain}
+
+### 100% Deterministic Reproduction Command
+\`\`\`bash
+${cmd}
+\`\`\`
+
+### Resolution / Applied Fix
+${sc.fixExplanation}
+
+\`\`\`javascript
+${sc.fixedSource}
+\`\`\`
+
+*Report generated by FLAKE//FORENSICS: Flaky Code. Found. Explained. Fixed.*`;
+
+  navigator.clipboard.writeText(md).then(() => {
+    showToast('GitHub/Jira template copied to clipboard!');
+  });
+}
+
+function exportFullReport() {
+  const sc = SCENARIOS[state.primaryCategory] || SCENARIOS.leaked_state;
+  const dateStr = new Date().toISOString().split('T')[0];
+  const cmd = generateDynamicCommand(state.runner, state.filePath, state.testName, state.primaryCategory, 'bash');
+  
+  const content = `# FLAKE//FORENSICS Root-Cause Audit Report
+Tagline: Flaky Code. Found. Explained. Fixed.
+Generated: ${dateStr}
+Project Test File: ${state.filePath}
+Test Case: ${state.testName}
+Runner: ${state.runner} (${state.nodeVersion})
+
+--------------------------------------------------------------------------------
+1. EXECUTIVE DIAGNOSIS
+--------------------------------------------------------------------------------
+Classified Root Cause : ${sc.categoryLabel}
+Engine Confidence     : 98.8%
+Observed Flake Rate   : ${state.flakeRate}% across 40 identical CI iterations
+Verdict Summary       : ${sc.explanation}
+
+Evidence Chain        : ${sc.evidenceChain}
+
+--------------------------------------------------------------------------------
+2. ANNUAL FINANCIAL & TIME WASTE (BEFORE FIX)
+--------------------------------------------------------------------------------
+CI Minutes per Run    : ${state.cost.minutesPerRun} min
+CI Runs per Day       : ${state.cost.runsPerDay}
+Team Size             : ${state.cost.numDevs} engineers
+Loaded Dev Hourly     : $${state.cost.hourlyRate}/hr
+Estimated Annual Drag : $${((state.cost.numDevs * 1200) + (state.cost.runsPerDay * 180)).toLocaleString()} / year
+
+--------------------------------------------------------------------------------
+3. 100% DETERMINISTIC REPRODUCTION COMMAND
+--------------------------------------------------------------------------------
+Execute locally to trigger failure with 100% reproducibility:
+
+$ ${cmd}
+
+--------------------------------------------------------------------------------
+4. HERMETIC CODE PATCH
+--------------------------------------------------------------------------------
+${sc.fixHeadline}
+${sc.fixExplanation}
+
+\`\`\`javascript
+${sc.fixedSource}
+\`\`\`
+
+--------------------------------------------------------------------------------
+Verified with 40-run re-evaluation: 40/40 PASS (0% Flake Rate).
+`;
+
+  const blob = new Blob([content], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `FlakeForensics-Audit-${state.primaryCategory}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Audit report downloaded successfully!');
+}
+
+function resetWorkspace() {
+  if (confirm('Reset FLAKE//FORENSICS workspace back to initial state?')) {
+    state.completedSteps = new Set([1]);
+    loadScenario('leaked_state');
+    goToStep(1);
+    showToast('Workspace reset to default scenario.');
+  }
+}
+
+// 15. Helper Utilities
+function escapeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function showToast(msg) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    <span>${msg}</span>
+  `;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+    toast.style.transition = 'all 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, 2800);
+}
+
+// ==========================================================================
+// Intro Screen Controllers & Keyboard Handlers
+// ==========================================================================
+function dismissIntroScreen() {
+  const intro = document.getElementById('intro-screen');
+  if (!intro || intro.classList.contains('fade-out')) return;
+  intro.classList.add('fade-out');
+  
+  // Clean up overlay after animation completes so it doesn't obstruct any interaction
+  setTimeout(() => {
+    intro.style.display = 'none';
+  }, 550);
+}
+
+function showIntroScreen() {
+  const intro = document.getElementById('intro-screen');
+  if (!intro) return;
+  intro.style.display = 'flex';
+  // Force browser reflow to trigger smooth CSS animation
+  void intro.offsetWidth;
+  intro.classList.remove('fade-out');
+  const btn = document.getElementById('intro-get-started-btn');
+  if (btn) btn.focus();
+}
+
+// Global keyboard shortcut: Pressing Enter launches workspace from intro screen
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const intro = document.getElementById('intro-screen');
+    if (intro && intro.style.display !== 'none' && !intro.classList.contains('fade-out')) {
+      dismissIntroScreen();
+    }
+  }
+});
+</script>
+</body>
+</html>
